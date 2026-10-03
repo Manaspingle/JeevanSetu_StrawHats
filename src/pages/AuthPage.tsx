@@ -1,558 +1,639 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Building2, Mail, Lock, User, Phone, MapPin, BadgeCheck,
-  ChevronRight, AlertCircle, Check, Globe
+  Heart, Building2, Activity, Mail, Lock, User, Phone,
+  MapPin, BadgeCheck, Shield, ChevronRight, AlertCircle,
+  Check, ArrowRight, Sparkles, Building, FileText
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { useLanguage, type Language } from '@/context/LanguageContext';
-import { BLOOD_GROUPS, ORGAN_TYPES, CITIES, CITY_COORDS } from '@/lib/constants';
+import { BLOOD_GROUPS, CITIES } from '@/lib/constants';
 
 export default function AuthPage() {
-  const { signIn, signUp } = useAuth();
-  const { language, setLanguage, t } = useLanguage();
+  const { signIn, signUp, demoSignIn, session, profile, role: activeRole } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
+  const redirectTarget = searchParams.get('redirect') || '';
   const initialMode = (searchParams.get('mode') as 'login' | 'signup') || 'login';
-  const initialRole = (searchParams.get('role') as 'individual' | 'hospital') || 'individual';
+  const initialRole = (searchParams.get('role') as 'donor' | 'hospital' | 'bank') || 'donor';
+  const notice = searchParams.get('notice');
 
   const [mode, setMode] = useState<'login' | 'signup'>(initialMode);
-  const [role, setRole] = useState<'individual' | 'hospital'>(initialRole);
+  const [role, setRole] = useState<'donor' | 'hospital' | 'bank'>(initialRole);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Individual signup fields
+  // Donor fields
   const [fullName, setFullName] = useState('');
-  const [age, setAge] = useState('28');
+  const [age, setAge] = useState('26');
+  const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>('Male');
   const [bloodGroup, setBloodGroup] = useState('O+');
-  const [city, setCity] = useState<'Mumbai' | 'Pune' | 'Nagpur'>('Mumbai');
+  const [city, setCity] = useState<'Nagpur' | 'Mumbai' | 'Pune'>('Nagpur');
   const [phone, setPhone] = useState('9876543210');
-  const [organs, setOrgans] = useState<string[]>(['Kidney', 'Liver', 'Cornea']);
-  const [emergencyContact, setEmergencyContact] = useState('9876543211');
+  const [weightKg, setWeightKg] = useState('65');
   const [consent, setConsent] = useState(true);
 
-  // Hospital signup fields
+  // Hospital fields
   const [hospitalName, setHospitalName] = useState('');
+  const [hospitalType, setHospitalType] = useState<'Government' | 'Private' | 'Charitable'>('Government');
   const [registrationId, setRegistrationId] = useState('');
-  const [address, setAddress] = useState('');
   const [contactPerson, setContactPerson] = useState('');
   const [hospitalPhone, setHospitalPhone] = useState('');
-  const [verified, setVerified] = useState(true);
+  const [hospitalAddress, setHospitalAddress] = useState('');
 
+  // Blood Bank fields
+  const [bankName, setBankName] = useState('');
+  const [licenseNumber, setLicenseNumber] = useState('');
+  const [inchargeName, setInchargeName] = useState('');
+  const [bankPhone, setBankPhone] = useState('');
+  const [hasApheresis, setHasApheresis] = useState(true);
+
+  // Redirect if already authenticated
   useEffect(() => {
-    const urlMode = searchParams.get('mode');
-    const urlRole = searchParams.get('role');
-    if (urlMode === 'login' || urlMode === 'signup') setMode(urlMode);
-    if (urlRole === 'individual' || urlRole === 'hospital') setRole(urlRole);
-  }, [searchParams]);
+    if (session || profile) {
+      if (redirectTarget) {
+        navigate(redirectTarget, { replace: true });
+      } else {
+        const dest = activeRole === 'hospital' ? '/hospital' : activeRole === 'bank' ? '/bank' : '/donor';
+        navigate(dest, { replace: true });
+      }
+    }
+  }, [session, profile, activeRole, redirectTarget, navigate]);
 
-  function toggleOrgan(organ: string) {
-    setOrgans((prev) =>
-      prev.includes(organ) ? prev.filter((o) => o !== organ) : [...prev, organ]
-    );
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
+  const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    if (mode === 'login') {
-      const { error: loginError } = await signIn(email, password);
-      if (loginError) {
-        setError(loginError);
-        setLoading(false);
-        return;
-      }
-      navigate('/dashboard');
-    } else {
-      const coords = CITY_COORDS[city] || { lat: 19.0760, lng: 72.8777 };
-
-      if (role === 'individual') {
-        const { error: signUpError } = await signUp(email, password, role, {
-          full_name: fullName || 'New Donor',
-          age: parseInt(age) || 25,
-          blood_group: bloodGroup,
-          city,
-          phone,
-          organs,
-          emergency_contact: emergencyContact,
-          consent,
-          available: true,
-          donor_level: 'Bronze',
-          donor_points: organs.length > 0 ? 60 : 0,
-          blood_donations: 0,
-          medical_allergies: '',
-          medical_conditions: '',
-          lat: coords.lat + (Math.random() - 0.5) * 0.05,
-          lng: coords.lng + (Math.random() - 0.5) * 0.05,
-        });
-        if (signUpError) {
-          setError(signUpError);
+    try {
+      if (mode === 'login') {
+        const { error: loginError } = await signIn(email, password);
+        if (loginError) {
+          setError(loginError);
           setLoading(false);
           return;
         }
-        navigate('/dashboard');
       } else {
-        const { error: signUpError } = await signUp(email, password, role, {
-          hospital_name: hospitalName || 'New Hospital',
-          registration_id: registrationId || 'REG-MH-999',
-          city,
-          address,
-          contact_person: contactPerson,
-          phone: hospitalPhone,
-          verified,
-          lat: coords.lat + (Math.random() - 0.5) * 0.05,
-          lng: coords.lng + (Math.random() - 0.5) * 0.05,
-          inventory: {
-            'O+': 8,
-            'O-': 4,
-            'A+': 6,
-            'B+': 5,
-            'Kidney': 2,
-            'Liver': 1,
-          },
-        });
+        let details = {};
+        if (role === 'donor') {
+          details = {
+            full_name: fullName || 'Registered Donor',
+            age: parseInt(age) || 25,
+            gender,
+            blood_group: bloodGroup,
+            city,
+            phone,
+            weight_kg: parseInt(weightKg) || 60,
+            consent,
+            available: true,
+            donor_level: 'Lifesaver Silver',
+            donor_points: 50,
+            blood_donations: 1,
+            organs: ['Kidney', 'Cornea'],
+            emergency_contact: '+91 9876500000',
+            medical_allergies: 'None',
+            medical_conditions: 'Healthy'
+          };
+        } else if (role === 'hospital') {
+          details = {
+            hospital_name: hospitalName || 'City Hospital',
+            registration_id: registrationId || 'REG-HOSP-2026',
+            hospital_type: hospitalType,
+            contact_person: contactPerson || 'Dr. Casualty Officer',
+            phone: hospitalPhone || '+91 712 2500001',
+            city,
+            address: hospitalAddress || 'Civil Lines, Nagpur',
+            verified: true,
+            inventory: {}
+          };
+        } else {
+          details = {
+            name: bankName || 'JeevanSetu Regional Blood Center',
+            license_number: licenseNumber || 'BB-MH-LIC-2026',
+            incharge_name: inchargeName || 'Dr. Medical Officer',
+            phone: bankPhone || '+91 712 2548901',
+            city,
+            has_apheresis: hasApheresis
+          };
+        }
+
+        const { error: signUpError } = await signUp(email, password, role, details);
         if (signUpError) {
           setError(signUpError);
           setLoading(false);
           return;
         }
-        navigate('/hospital-dashboard');
       }
+
+      // Route to destination
+      const target = redirectTarget || (role === 'hospital' ? '/hospital' : role === 'bank' ? '/bank' : '/donor');
+      navigate(target, { replace: true });
+    } catch (err: any) {
+      setError(err?.message || 'Authentication failed. Please verify credentials.');
+    } finally {
+      setLoading(false);
     }
+  };
 
-    setLoading(false);
-  }
-
-  const inputClass = 'w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-teal/40 focus:border-brand-teal transition-all text-sm font-medium';
+  const handleQuickDemo = async (targetRole: 'donor' | 'hospital' | 'bank') => {
+    setLoading(true);
+    setError(null);
+    const { error: demoErr } = await demoSignIn(targetRole);
+    if (demoErr) {
+      setError(demoErr);
+      setLoading(false);
+      return;
+    }
+    const target = redirectTarget || (targetRole === 'hospital' ? '/hospital' : targetRole === 'bank' ? '/bank' : '/donor');
+    navigate(target, { replace: true });
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-orange-50/20 flex items-center justify-center p-4 sm:p-6">
-      <motion.div
-        initial={{ opacity: 0, y: 15 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-2xl"
-      >
-        <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden">
-          {/* Header with Uploaded Brand Logo and #00605F */}
-          <div className="bg-gradient-to-r from-brand-teal via-[#005453] to-[#003837] px-8 py-7 text-white relative">
-            <div className="flex items-center justify-between">
-              <Link to="/" className="inline-flex items-center gap-3 text-white mb-3 hover:opacity-95 transition-opacity">
-                <img
-                  src="/aarogyam-logo.jpg"
-                  alt="Aarogyam Logo"
-                  className="w-10 h-10 object-cover rounded-xl border-2 border-brand-orange shadow-md"
-                />
-                <span className="text-2xl font-black">{t('app.name')}</span>
-              </Link>
-
-              {/* Language Switcher */}
-              <div className="flex items-center gap-1.5 bg-white/15 px-3 py-1 rounded-xl text-xs font-bold mb-3">
-                <Globe className="w-3.5 h-3.5 text-brand-orange" />
-                <select
-                  value={language}
-                  onChange={(e) => setLanguage(e.target.value as Language)}
-                  className="bg-transparent text-white font-bold focus:outline-none cursor-pointer"
-                >
-                  <option value="en" className="text-slate-800">EN</option>
-                  <option value="hi" className="text-slate-800">हिन्दी</option>
-                  <option value="mr" className="text-slate-800">मराठी</option>
-                </select>
-              </div>
-            </div>
-
-            <h1 className="text-2xl sm:text-3xl font-black">
-              {mode === 'login' ? t('auth.welcome_back') : t('auth.join_aarogyam')}
-            </h1>
-            <p className="text-teal-100 text-xs sm:text-sm mt-1">
-              {mode === 'login'
-                ? 'Sign in to access your dashboard across Mumbai, Pune, and Nagpur'
-                : 'Connect with local hospitals, donors, and trauma centers in Maharashtra'}
-            </p>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col justify-between transition-colors">
+      {/* Top Banner */}
+      <div className="bg-slate-900 text-slate-300 text-xs py-2 px-4 border-b border-slate-800">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2 text-white hover:text-rose-400 transition">
+            <span className="font-semibold">← Back to JeevanSetu National Portal</span>
+          </Link>
+          <div className="text-slate-400 hidden sm:block">
+            Secure Government &amp; Health Network Gateway
           </div>
+        </div>
+      </div>
 
-          <div className="p-6 sm:p-8">
-            {/* Mode toggle (Login / Signup) */}
-            <div className="flex gap-2 mb-6 p-1.5 bg-slate-100 rounded-2xl">
-              <button
-                type="button"
-                onClick={() => setMode('login')}
-                className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-all ${
-                  mode === 'login' ? 'bg-white text-brand-teal shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                {t('auth.sign_in')}
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode('signup')}
-                className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-all ${
-                  mode === 'signup' ? 'bg-white text-brand-teal shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                {t('auth.register')}
-              </button>
-            </div>
-
-            {/* Role toggle (Individual / Hospital) */}
-            <div className="flex gap-3 mb-6">
-              <button
-                type="button"
-                onClick={() => setRole('individual')}
-                className={`flex-1 flex items-center justify-center gap-2.5 py-3 rounded-2xl border-2 transition-all font-bold text-sm ${
-                  role === 'individual'
-                    ? 'border-brand-teal bg-teal-50/70 text-brand-teal shadow-sm'
-                    : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                }`}
-              >
-                <User className="w-4 h-4" />
-                {t('auth.role_individual')}
-              </button>
-              <button
-                type="button"
-                onClick={() => setRole('hospital')}
-                className={`flex-1 flex items-center justify-center gap-2.5 py-3 rounded-2xl border-2 transition-all font-bold text-sm ${
-                  role === 'hospital'
-                    ? 'border-brand-teal bg-teal-50/70 text-brand-teal shadow-sm'
-                    : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                }`}
-              >
-                <Building2 className="w-4 h-4" />
-                {t('auth.role_hospital')}
-              </button>
-            </div>
-
-            {/* Main Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <AnimatePresence mode="wait">
-                {mode === 'signup' && role === 'individual' && (
-                  <motion.div
-                    key="individual-signup"
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="space-y-4 overflow-hidden"
-                  >
-                    <div className="relative">
-                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                      <input
-                        type="text"
-                        placeholder={t('auth.full_name')}
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        required
-                        className={inputClass}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="relative">
-                        <input
-                          type="number"
-                          placeholder="Age (18-65)"
-                          value={age}
-                          onChange={(e) => setAge(e.target.value)}
-                          required
-                          min="18"
-                          max="70"
-                          className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-800 placeholder-slate-400 text-sm font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-teal/40"
-                        />
-                      </div>
-                      <select
-                        value={bloodGroup}
-                        onChange={(e) => setBloodGroup(e.target.value)}
-                        required
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-800 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-teal/40"
-                      >
-                        {BLOOD_GROUPS.map((bg) => (
-                          <option key={bg} value={bg}>Blood Group: {bg}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Restricted Cities: Mumbai, Pune, Nagpur only */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <select
-                        value={city}
-                        onChange={(e) => setCity(e.target.value as 'Mumbai' | 'Pune' | 'Nagpur')}
-                        required
-                        className="w-full px-4 py-3 rounded-xl border-2 border-brand-orange/40 bg-orange-50/30 text-slate-800 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand-teal/40"
-                      >
-                        {CITIES.map((c) => (
-                          <option key={c} value={c}>City: {c} (Maharashtra)</option>
-                        ))}
-                      </select>
-                      <div className="relative">
-                        <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                        <input
-                          type="tel"
-                          placeholder={t('auth.phone')}
-                          value={phone}
-                          onChange={(e) => setPhone(e.target.value)}
-                          required
-                          className={inputClass}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Organs willing to donate multi-select */}
-                    <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                      <label className="block text-xs font-bold text-slate-700 mb-2">
-                        Organs Willing to Donate (Posthumous Pledge)
-                      </label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {ORGAN_TYPES.map((organ) => {
-                          const isSelected = organs.includes(organ);
-                          return (
-                            <button
-                              key={organ}
-                              type="button"
-                              onClick={() => toggleOrgan(organ)}
-                              className={`p-2 rounded-xl text-xs font-bold transition-all border ${
-                                isSelected
-                                  ? 'bg-brand-orange text-white border-brand-orange shadow-sm'
-                                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-                              }`}
-                            >
-                              {isSelected ? '✓ ' : '+ '}{organ}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="relative">
-                      <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                      <input
-                        type="tel"
-                        placeholder="Emergency Contact Phone"
-                        value={emergencyContact}
-                        onChange={(e) => setEmergencyContact(e.target.value)}
-                        required
-                        className={inputClass}
-                      />
-                    </div>
-
-                    <label className="flex items-start gap-2.5 p-3 rounded-xl bg-orange-50/50 border border-brand-orange/20 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={consent}
-                        onChange={(e) => setConsent(e.target.checked)}
-                        className="mt-1 w-4 h-4 rounded text-brand-teal focus:ring-brand-teal"
-                      />
-                      <span className="text-xs text-slate-700 leading-snug">
-                        I hereby pledge to donate my chosen organs posthumously and agree to emergency blood dispatch alerts.
-                      </span>
-                    </label>
-                  </motion.div>
-                )}
-
-                {mode === 'signup' && role === 'hospital' && (
-                  <motion.div
-                    key="hospital-signup"
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="space-y-4 overflow-hidden"
-                  >
-                    <div className="relative">
-                      <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                      <input
-                        type="text"
-                        placeholder={t('auth.hospital_name')}
-                        value={hospitalName}
-                        onChange={(e) => setHospitalName(e.target.value)}
-                        required
-                        className={inputClass}
-                      />
-                    </div>
-
-                    {/* Restricted Cities: Mumbai, Pune, Nagpur only */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="relative">
-                        <BadgeCheck className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                        <input
-                          type="text"
-                          placeholder={t('auth.registration_id')}
-                          value={registrationId}
-                          onChange={(e) => setRegistrationId(e.target.value)}
-                          required
-                          className={inputClass}
-                        />
-                      </div>
-                      <select
-                        value={city}
-                        onChange={(e) => setCity(e.target.value as 'Mumbai' | 'Pune' | 'Nagpur')}
-                        required
-                        className="w-full px-4 py-3 rounded-xl border-2 border-brand-orange/40 bg-orange-50/30 text-slate-800 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand-teal/40"
-                      >
-                        {CITIES.map((c) => (
-                          <option key={c} value={c}>City: {c} (Maharashtra)</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="relative">
-                      <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                      <input
-                        type="text"
-                        placeholder={t('auth.address')}
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                        required
-                        className={inputClass}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="relative">
-                        <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                        <input
-                          type="text"
-                          placeholder={t('auth.contact_person')}
-                          value={contactPerson}
-                          onChange={(e) => setContactPerson(e.target.value)}
-                          required
-                          className={inputClass}
-                        />
-                      </div>
-                      <div className="relative">
-                        <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                        <input
-                          type="tel"
-                          placeholder="Hospital Phone"
-                          value={hospitalPhone}
-                          onChange={(e) => setHospitalPhone(e.target.value)}
-                          required
-                          className={inputClass}
-                        />
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Email & Password (Common to all modes) */}
-              <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input
-                  type="email"
-                  placeholder={t('auth.email')}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className={inputClass}
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8">
+        <div className="w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden grid grid-cols-1 lg:grid-cols-12">
+          
+          {/* Left Visual Column */}
+          <div className="lg:col-span-5 bg-gradient-to-br from-slate-900 via-rose-950 to-slate-900 text-white p-8 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-800">
+            <div>
+              <div className="flex items-center gap-3 mb-6">
+                <img
+                  src="/jeevansetu-logo.png"
+                  alt="JeevanSetu"
+                  className="h-12 w-auto object-contain bg-white/10 p-1 rounded-xl"
                 />
+                <div>
+                  <h1 className="text-2xl font-black tracking-tight leading-tight">
+                    जीवन<span className="text-rose-500">Setu</span>
+                  </h1>
+                  <p className="text-xs text-rose-300 font-medium">
+                    रक्ताचा सेतू, जीवनाचा आधार
+                  </p>
+                </div>
               </div>
 
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input
-                  type="password"
-                  placeholder={t('auth.password')}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                  className={inputClass}
-                />
-              </div>
+              <div className="space-y-4 my-8">
+                <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+                  <h3 className="text-sm font-bold flex items-center gap-2 text-rose-400">
+                    <Shield className="w-4 h-4" /> Three Dedicated Role Portals
+                  </h3>
+                  <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                    Access donor lifesaver metrics, hospital emergency blood allocations, or blood bank real-time component inventories.
+                  </p>
+                </div>
 
-              {/* Quick Demo Credentials Helpers */}
-              {mode === 'login' && (
-                <div className="p-3.5 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-100 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 space-y-2">
-                  <p className="font-bold text-slate-700 dark:text-slate-200">Quick Hospital & Donor Access:</p>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmail('gmc.nagpur@aarogyam.org');
-                        setPassword('password123');
-                        setRole('hospital');
-                      }}
-                      className="px-2.5 py-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg hover:border-brand-teal text-slate-800 dark:text-slate-100 font-semibold transition-colors"
-                    >
-                      🏥 GMC Nagpur
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmail('kingsway.nagpur@aarogyam.org');
-                        setPassword('password123');
-                        setRole('hospital');
-                      }}
-                      className="px-2.5 py-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg hover:border-brand-teal text-slate-800 dark:text-slate-100 font-semibold transition-colors"
-                    >
-                      🏥 Kingsway Nagpur
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmail('kem.mumbai@aarogyam.org');
-                        setPassword('password123');
-                        setRole('hospital');
-                      }}
-                      className="px-2.5 py-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg hover:border-brand-teal text-slate-800 dark:text-slate-100 font-semibold transition-colors"
-                    >
-                      🏥 KEM Mumbai
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmail('sassoon.pune@aarogyam.org');
-                        setPassword('password123');
-                        setRole('hospital');
-                      }}
-                      className="px-2.5 py-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg hover:border-brand-teal text-slate-800 dark:text-slate-100 font-semibold transition-colors"
-                    >
-                      🏥 Sassoon Pune
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmail('donor1@gmail.com');
-                        setPassword('password123');
-                        setRole('individual');
-                      }}
-                      className="px-2.5 py-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg hover:border-brand-teal text-slate-800 dark:text-slate-100 font-semibold transition-colors"
-                    >
-                      🩸 Rajesh (Donor)
-                    </button>
+                <div className="space-y-2.5 text-xs text-slate-300">
+                  <div className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Role-based protected authentication</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Real-time Firebase Firestore synchronization</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>National 8x8 compatibility verification</span>
                   </div>
                 </div>
-              )}
+              </div>
+            </div>
 
-              {error && (
-                <div className="flex items-center gap-2 p-3.5 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-semibold">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                  <span>{error}</span>
+            {/* Quick Demo Access Bar */}
+            <div className="pt-6 border-t border-white/10">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-rose-300 mb-2">
+                Evaluator Instant 1-Click Login:
+              </p>
+              <div className="grid grid-cols-3 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleQuickDemo('donor')}
+                  className="px-2 py-2 rounded-xl bg-white/10 hover:bg-rose-600/80 text-[11px] font-semibold transition border border-white/15 text-center flex flex-col items-center gap-1"
+                >
+                  <Heart className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Donor</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickDemo('hospital')}
+                  className="px-2 py-2 rounded-xl bg-white/10 hover:bg-blue-600/80 text-[11px] font-semibold transition border border-white/15 text-center flex flex-col items-center gap-1"
+                >
+                  <Building2 className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Hospital</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickDemo('bank')}
+                  className="px-2 py-2 rounded-xl bg-white/10 hover:bg-emerald-600/80 text-[11px] font-semibold transition border border-white/15 text-center flex flex-col items-center gap-1"
+                >
+                  <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Blood Bank</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Form Column */}
+          <div className="lg:col-span-7 p-6 sm:p-8 lg:p-10 flex flex-col justify-center">
+            
+            {/* Notice banner if redirected from protected route */}
+            {notice === 'auth_required' && (
+              <div className="mb-6 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 shrink-0 text-amber-600 mt-0.5" />
+                <div>
+                  <span className="font-bold">Authentication Required:</span>
+                  <p className="mt-0.5 text-amber-700 dark:text-amber-300">
+                    Please log in or sign up below to open the requested dashboard.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Mode Switcher: Login vs Sign Up */}
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl mb-6">
+              <button
+                type="button"
+                onClick={() => { setMode('login'); setError(null); }}
+                className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition ${
+                  mode === 'login'
+                    ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                }`}
+              >
+                Sign In to Portal
+              </button>
+              <button
+                type="button"
+                onClick={() => { setMode('signup'); setError(null); }}
+                className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition ${
+                  mode === 'signup'
+                    ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                }`}
+              >
+                New Registration (Sign Up)
+              </button>
+            </div>
+
+            {/* Role Switcher */}
+            <div className="mb-6">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                Select Your Entity Role:
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRole('donor')}
+                  className={`p-3 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition ${
+                    role === 'donor'
+                      ? 'border-rose-500 bg-rose-50/80 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 shadow-sm ring-2 ring-rose-500/20'
+                      : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  <Heart className={`w-5 h-5 ${role === 'donor' ? 'text-rose-600' : 'text-slate-400'}`} />
+                  <span>Blood Donor</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setRole('hospital')}
+                  className={`p-3 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition ${
+                    role === 'hospital'
+                      ? 'border-blue-500 bg-blue-50/80 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 shadow-sm ring-2 ring-blue-500/20'
+                      : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  <Building2 className={`w-5 h-5 ${role === 'hospital' ? 'text-blue-600' : 'text-slate-400'}`} />
+                  <span>Hospital</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setRole('bank')}
+                  className={`p-3 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1.5 transition ${
+                    role === 'bank'
+                      ? 'border-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 shadow-sm ring-2 ring-emerald-500/20'
+                      : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  <Activity className={`w-5 h-5 ${role === 'bank' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                  <span>Blood Bank</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="mb-4 p-3.5 rounded-xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {/* Form */}
+            <form onSubmit={handleAuthSubmit} className="space-y-4">
+              
+              {/* Common Credentials */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Official Email / User ID
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder={role === 'donor' ? 'donor@example.com' : `${role}@hospital.gov.in`}
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:ring-2 focus:ring-rose-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                    <input
+                      type="password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Minimum 6 characters"
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:ring-2 focus:ring-rose-500 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Role-Specific Sign-Up Fields */}
+              {mode === 'signup' && (
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-3">
+                  
+                  {/* DONOR SPECIFIC FIELDS */}
+                  {role === 'donor' && (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Full Legal Name</label>
+                          <input
+                            type="text"
+                            required
+                            value={fullName}
+                            onChange={(e) => setFullName(e.target.value)}
+                            placeholder="e.g. Rahul Sharma"
+                            className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:ring-2 focus:ring-rose-500 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Mobile (+91)</label>
+                          <input
+                            type="tel"
+                            required
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            placeholder="10-digit mobile"
+                            className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:ring-2 focus:ring-rose-500 outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Blood Group</label>
+                          <select
+                            value={bloodGroup}
+                            onChange={(e) => setBloodGroup(e.target.value)}
+                            className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:ring-2 focus:ring-rose-500 outline-none font-bold text-rose-600"
+                          >
+                            {BLOOD_GROUPS.map((bg) => (
+                              <option key={bg} value={bg}>{bg}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Gender</label>
+                          <select
+                            value={gender}
+                            onChange={(e) => setGender(e.target.value as any)}
+                            className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:ring-2 focus:ring-rose-500 outline-none"
+                          >
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">City / District</label>
+                          <select
+                            value={city}
+                            onChange={(e) => setCity(e.target.value as any)}
+                            className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:ring-2 focus:ring-rose-500 outline-none"
+                          >
+                            <option value="Nagpur">Nagpur</option>
+                            <option value="Pune">Pune</option>
+                            <option value="Mumbai">Mumbai</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <input
+                          type="checkbox"
+                          id="consent"
+                          checked={consent}
+                          onChange={(e) => setConsent(e.target.checked)}
+                          className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500"
+                        />
+                        <label htmlFor="consent" className="text-[11px] text-slate-600 dark:text-slate-400">
+                          I confirm I weigh over 50kg and consent to participate as an active voluntary blood donor.
+                        </label>
+                      </div>
+                    </>
+                  )}
+
+                  {/* HOSPITAL SPECIFIC FIELDS */}
+                  {role === 'hospital' && (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Hospital / Medical Center Name</label>
+                          <input
+                            type="text"
+                            required
+                            value={hospitalName}
+                            onChange={(e) => setHospitalName(e.target.value)}
+                            placeholder="e.g. Government Medical College & Hospital"
+                            className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">NABH / Registration License No</label>
+                          <input
+                            type="text"
+                            required
+                            value={registrationId}
+                            onChange={(e) => setRegistrationId(e.target.value)}
+                            placeholder="e.g. MAH-NGP-HOSP-2024"
+                            className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Hospital Category</label>
+                          <select
+                            value={hospitalType}
+                            onChange={(e) => setHospitalType(e.target.value as any)}
+                            className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                          >
+                            <option value="Government">Government / Public</option>
+                            <option value="Private">Private Corporate</option>
+                            <option value="Charitable">Charitable Trust</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Authorized Medical Officer</label>
+                          <input
+                            type="text"
+                            required
+                            value={contactPerson}
+                            onChange={(e) => setContactPerson(e.target.value)}
+                            placeholder="Dr. Name"
+                            className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Emergency Hotline Phone</label>
+                          <input
+                            type="tel"
+                            required
+                            value={hospitalPhone}
+                            onChange={(e) => setHospitalPhone(e.target.value)}
+                            placeholder="+91 Phone"
+                            className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* BLOOD BANK SPECIFIC FIELDS */}
+                  {role === 'bank' && (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Blood Bank Center Name</label>
+                          <input
+                            type="text"
+                            required
+                            value={bankName}
+                            onChange={(e) => setBankName(e.target.value)}
+                            placeholder="e.g. JeevanSetu Regional Blood Center"
+                            className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">SBTC / Drug License Number</label>
+                          <input
+                            type="text"
+                            required
+                            value={licenseNumber}
+                            onChange={(e) => setLicenseNumber(e.target.value)}
+                            placeholder="e.g. BB-MH-NGP-2022-019"
+                            className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">In-Charge Medical Director</label>
+                          <input
+                            type="text"
+                            required
+                            value={inchargeName}
+                            onChange={(e) => setInchargeName(e.target.value)}
+                            placeholder="Dr. In-Charge Name"
+                            className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Facility Contact Phone</label>
+                          <input
+                            type="tel"
+                            required
+                            value={bankPhone}
+                            onChange={(e) => setBankPhone(e.target.value)}
+                            placeholder="Official Phone"
+                            className="w-full px-3 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <input
+                          type="checkbox"
+                          id="apheresis"
+                          checked={hasApheresis}
+                          onChange={(e) => setHasApheresis(e.target.checked)}
+                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <label htmlFor="apheresis" className="text-[11px] text-slate-600 dark:text-slate-400">
+                          Facility equipped with Component Separation &amp; Apheresis Unit (Platelets &amp; Plasma).
+                        </label>
+                      </div>
+                    </>
+                  )}
+
                 </div>
               )}
 
-              {/* Submit Button in Brand Teal #00605F */}
+              {/* Submit Button */}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-2 py-4 bg-brand-teal hover:bg-brand-teal/90 text-white font-black rounded-2xl transition-all shadow-xl shadow-brand-teal/25 disabled:opacity-60 text-base"
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-rose-700 to-rose-600 hover:from-rose-800 hover:to-rose-700 text-white font-bold text-sm shadow-md shadow-rose-900/20 transition active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 mt-6"
               >
                 {loading ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
-                    <span>{mode === 'login' ? t('auth.submit_signin') : t('auth.submit_register')}</span>
-                    <ChevronRight className="w-5 h-5" />
+                    <span>{mode === 'login' ? 'Sign In & Open Dashboard' : 'Complete Registration & Open Dashboard'}</span>
+                    <ArrowRight className="w-4 h-4" />
                   </>
                 )}
               </button>
             </form>
+
           </div>
+
         </div>
-      </motion.div>
+      </div>
+
+      {/* Footer stripe */}
+      <div className="py-4 text-center text-xs text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800">
+        © 2026 JeevanSetu &bull; National Blood Transfusion Network &bull; Ministry of Health &amp; Family Welfare
+      </div>
     </div>
   );
 }

@@ -10,7 +10,7 @@ export default function Layout() {
       </main>
       <footer className="border-t border-slate-200 dark:border-slate-800 py-6 bg-white dark:bg-slate-900 text-center text-xs text-slate-500">
         <p>
-          <strong>JeevanSetu</strong> &bull; Connecting People, Saving lives &bull; Real-Time Blood Bank Inventory &amp; Last-Unit Concurrency Guard
+          <strong>JeevanSetu</strong> &bull; रक्ताचा सेतू, जीवनाचा आधार &bull; National Blood Transfusion Network &bull; Govt of India
         </p>
       </footer>
     </div>

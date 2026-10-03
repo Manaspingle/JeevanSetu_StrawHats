@@ -1,10 +1,24 @@
-export type UserRole = 'individual' | 'hospital';
+export type UserRole = 'donor' | 'hospital' | 'bank' | 'individual';
 
 export interface AuditLog {
   id: string;
   action: string;
   details: string;
   verification_hash: string;
+  created_at: string;
+}
+
+export interface BloodBankProfile {
+  id: string;
+  user_id: string;
+  name: string;
+  license_number: string;
+  incharge_name: string;
+  email: string;
+  phone: string;
+  city: string;
+  parent_hospital?: string;
+  has_apheresis?: boolean;
   created_at: string;
 }
 
