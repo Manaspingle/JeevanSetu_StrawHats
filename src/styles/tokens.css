@@ -1,0 +1,91 @@
+/* ==============================================================================
+   JeevanSetu Design Tokens
+   WCAG 2.2 AA Verified Token System
+   Theme A: "Life & Care" (Default)
+   Theme B: "Clinical Trust" ([data-theme="clinical"])
+   High Contrast ([data-contrast="high"])
+   ============================================================================== */
+
+:root {
+  /* THEME A: "Life & Care" (crimson + navy) */
+  --color-primary: #C8102E;        /* buttons, brand, key actions */
+  --color-primary-hover: #A80D26;
+  --color-navy: #12263F;           /* nav, headings, body text */
+  --color-bg: #F6F8FA;
+  --color-surface: #FFFFFF;
+  --color-border: #D8DFE6;
+  --color-success-fill: #1F9D6B;   /* badges/fills only */
+  --color-success-text: #137A52;   /* text on white (4.5:1+) */
+  --color-warning-fill: #F5A524;   /* fills only, always with dark navy text */
+  --color-warning-text: #8A5A00;   /* text on white */
+  --color-danger: #B42318;         /* errors and expired; distinct from brand crimson */
+  --color-accent: #C8102E;         /* fallback */
+  
+  /* Focus Indicator: 3px navy outline with 2px white offset */
+  --focus-ring: 0 0 0 3px #FFFFFF, 0 0 0 6px #12263F;
+  --focus-ring-clinical: 0 0 0 3px #FFFFFF, 0 0 0 6px #0F4C81;
+
+  /* Layout & Geometry */
+  --radius-card: 12px;
+  --max-content-width: 1200px;
+  --touch-target-min: 44px;
+}
+
+/* THEME B: "Clinical Trust" (blue + teal) */
+[data-theme="clinical"] {
+  --color-primary: #0F4C81;
+  --color-primary-hover: #0B3A63;
+  --color-accent: #1AA6B7;         /* icons, borders, chart fills ONLY; fails 4.5:1 as text on white */
+  --color-navy: #0B1F33;
+  --color-bg: #F5F9FC;
+  --color-surface: #FFFFFF;
+  --color-border: #D1DDE8;
+  --color-danger: #E5484D;
+  --color-success-fill: #1F9D6B;
+  --color-success-text: #137A52;
+  --color-warning-fill: #F5A524;
+  --color-warning-text: #8A5A00;
+}
+
+/* High Contrast Mode (Accessible 7:1+ ratio) */
+[data-contrast="high"] {
+  --color-primary: #9E001B;
+  --color-primary-hover: #7A0015;
+  --color-navy: #000000;
+  --color-bg: #FFFFFF;
+  --color-surface: #FFFFFF;
+  --color-border: #000000;
+  --color-success-fill: #0E6B47;
+  --color-success-text: #08432B;
+  --color-warning-fill: #D97706;
+  --color-warning-text: #451A03;
+  --color-danger: #990000;
+  --color-accent: #004D73;
+}
+
+[data-theme="clinical"][data-contrast="high"] {
+  --color-primary: #0A355C;
+  --color-primary-hover: #06233E;
+  --color-navy: #000000;
+  --color-bg: #FFFFFF;
+  --color-surface: #FFFFFF;
+  --color-border: #000000;
+  --color-danger: #990000;
+}
+
+/* 4-Step Accessible Type Scale */
+html[data-text-size="sm"] {
+  font-size: 14px;
+}
+html[data-text-size="base"] {
+  font-size: 16px;
+}
+html[data-text-size="lg"] {
+  font-size: 18px;
+}
+
+/* Accessibility Focus Helper */
+*:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}

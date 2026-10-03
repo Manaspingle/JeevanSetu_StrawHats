@@ -47,6 +47,7 @@ $frontendTargets = @(
     "src/types",
     "src/domain",
     "src/services",
+    "src/styles",
     "src/App.tsx",
     "src/main.tsx",
     "src/index.css",
@@ -64,6 +65,7 @@ $frontendTargets = @(
     "eslint.config.js",
     ".gitignore",
     "README.md",
+    "DESIGN.md",
     "commit_and_push_frontend.ps1",
     "commit_and_push_frontend.bat",
     "push_frontend_features.ps1"
