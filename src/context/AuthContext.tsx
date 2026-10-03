@@ -22,7 +22,7 @@ interface AuthContextType {
   role: 'donor' | 'hospital' | 'bank' | null;
   loading: boolean;
   signUp: (email: string, password: string, role: 'donor' | 'hospital' | 'bank', data: any) => Promise<{ error: string | null }>;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signIn: (email: string, password: string, targetRole?: 'donor' | 'hospital' | 'bank') => Promise<{ error: string | null }>;
   demoSignIn: (role: 'donor' | 'hospital' | 'bank', targetId?: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -332,8 +332,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function signIn(email: string, password: string) {
+  async function signIn(email: string, password: string, targetRole?: 'donor' | 'hospital' | 'bank') {
     const cleanEmail = email.trim().toLowerCase();
+
+    // Helper to validate role match
+    const validateRoleMatch = async (resolvedRole: 'donor' | 'hospital' | 'bank'): Promise<{ error: string | null }> => {
+      if (targetRole && resolvedRole !== targetRole) {
+        await firebaseSignOut(auth).catch(() => {});
+        localStorage.removeItem(JEEVANSETU_SESSION_KEY);
+        localStorage.removeItem(DEMO_SESSION_KEY);
+        setSession(null);
+        setProfile(null);
+        setDonor(null);
+        setHospital(null);
+        setBank(null);
+        const targetPortalName = targetRole === 'donor' ? 'Donor' : targetRole === 'hospital' ? 'Hospital' : 'Blood Bank';
+        const registeredName = resolvedRole === 'donor' ? 'Donor' : resolvedRole === 'hospital' ? 'Hospital' : 'Blood Bank';
+        return {
+          error: `Access Denied: This account is registered as a ${registeredName}. You cannot log into the ${targetPortalName} portal with these credentials. Please switch to the ${registeredName} login.`
+        };
+      }
+      return { error: null };
+    };
 
     // Try Firebase Authentication first
     try {
@@ -342,6 +362,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await loadUserData(res.user);
       localStorage.removeItem(JEEVANSETU_SESSION_KEY);
       localStorage.removeItem(DEMO_SESSION_KEY);
+
+      // Check loaded role
+      const savedProfile = profile;
+      if (targetRole && savedProfile) {
+        const actualRole = (savedProfile.role === 'individual' ? 'donor' : savedProfile.role) as 'donor' | 'hospital' | 'bank';
+        const roleCheck = await validateRoleMatch(actualRole);
+        if (roleCheck.error) return roleCheck;
+      }
       return { error: null };
     } catch (authErr: any) {
       console.warn('Firebase Auth sign in failed, checking mock and seed credentials:', authErr.message);
@@ -352,6 +380,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         (h) => h.email.toLowerCase() === cleanEmail || h.id.toLowerCase() === cleanEmail
       );
       if (matchedHospital) {
+        const roleCheck = await validateRoleMatch('hospital');
+        if (roleCheck.error) return roleCheck;
+
         const demoUser = { uid: matchedHospital.id, email: matchedHospital.email };
         const demoProfile: Profile = {
           id: matchedHospital.id,
@@ -379,6 +410,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         (d) => d.email.toLowerCase() === cleanEmail || d.id.toLowerCase() === cleanEmail
       );
       if (matchedDonor) {
+        const roleCheck = await validateRoleMatch('donor');
+        if (roleCheck.error) return roleCheck;
+
         const demoUser = { uid: matchedDonor.id, email: matchedDonor.email };
         const demoProfile: Profile = {
           id: matchedDonor.id,
@@ -405,6 +439,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         (b) => b.id.toLowerCase() === cleanEmail || b.id.toLowerCase() === cleanEmail.replace('@jeevansetu.gov.in', '')
       );
       if (matchedBank) {
+        const roleCheck = await validateRoleMatch('bank');
+        if (roleCheck.error) return roleCheck;
+
         const demoUser = { uid: matchedBank.id, email: `${matchedBank.id}@jeevansetu.gov.in` };
         const demoProfile: Profile = {
           id: matchedBank.id,

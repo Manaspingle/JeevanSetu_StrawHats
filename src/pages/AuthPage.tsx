@@ -70,7 +70,7 @@ export default function AuthPage() {
 
     try {
       if (mode === 'login') {
-        const { error: loginError } = await signIn(email, password);
+        const { error: loginError } = await signIn(email, password, role);
         if (loginError) {
           setError(loginError);
           setLoading(false);

@@ -18,6 +18,51 @@ import type {
 
 const STORAGE_KEY = 'jeevansetu_state_v1';
 
+export interface DonorRegistration {
+  id: string;
+  donorId: string;
+  rfidUid: string;
+  aadhaarNumber: string;
+  fullName: string;
+  gender: 'Male' | 'Female' | 'Other';
+  age: number;
+  weightKg: number;
+  bloodGroup: BloodGroup;
+  city: 'Nagpur' | 'Mumbai' | 'Pune';
+  phone: string;
+  email: string;
+  lastDonationDate: string | null;
+  isEligible: boolean;
+  eligibleQuantity: string;
+  daysCooldown: number;
+  cooldownPeriodMonths: number;
+  ineligibilityReason?: string;
+  medicalConditions: string;
+  points: number;
+  donorLevel: string;
+  status: 'registered' | 'contacted' | 'arrived' | 'verified_at_hospital' | 'completed';
+  createdAt: string;
+}
+
+export interface PeerHospitalRequest {
+  id: string;
+  fromHospitalId: string;
+  fromHospitalName: string;
+  fromCity: 'Nagpur' | 'Mumbai' | 'Pune';
+  toHospitalId: string;
+  toHospitalName: string;
+  toCity: 'Nagpur' | 'Mumbai' | 'Pune';
+  category: 'blood' | 'organ';
+  item: string;
+  units: number;
+  urgency: 'Critical' | 'Urgent' | 'Standard';
+  patientRef: string;
+  reason: string;
+  status: 'requested' | 'approved' | 'dispatched' | 'received' | 'declined';
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface JeevanSetuState {
   banks: BloodBank[];
   hospitals: HospitalEntity[];
@@ -25,6 +70,8 @@ interface JeevanSetuState {
   units: BloodUnit[];
   stockSummaries: Record<string, StockSummary>;
   requests: EmergencyRequest[];
+  donorRegistrations: DonorRegistration[];
+  peerHospitalRequests: PeerHospitalRequest[];
   auditLogs: AuditLogEntry[];
 }
 
@@ -47,7 +94,14 @@ class BloodService {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         try {
-          return JSON.parse(saved);
+          const parsed = JSON.parse(saved);
+          if (!parsed.donorRegistrations || parsed.donorRegistrations.length === 0) {
+            parsed.donorRegistrations = this.getSeedDonorRegistrations();
+          }
+          if (!parsed.peerHospitalRequests || parsed.peerHospitalRequests.length === 0) {
+            parsed.peerHospitalRequests = this.getSeedPeerHospitalRequests();
+          }
+          return parsed;
         } catch {
           // fallback to fresh seed
         }
@@ -61,6 +115,8 @@ class BloodService {
       donors: [...SEED_DONORS],
       units,
       stockSummaries,
+      donorRegistrations: this.getSeedDonorRegistrations(),
+      peerHospitalRequests: this.getSeedPeerHospitalRequests(),
       requests: [
         {
           id: 'req_seed_01',
@@ -109,6 +165,168 @@ class BloodService {
 
     this.saveState(initialState);
     return initialState;
+  }
+
+  private getSeedDonorRegistrations(): DonorRegistration[] {
+    return [
+      {
+        id: 'reg_nagpur_01',
+        donorId: 'JS-DON-94821',
+        rfidUid: 'A4:8B:2F:10',
+        aadhaarNumber: 'XXXX-XXXX-8421',
+        fullName: 'Rahul Sharma',
+        gender: 'Male',
+        age: 27,
+        weightKg: 68,
+        bloodGroup: 'O+',
+        city: 'Nagpur',
+        phone: '+91 98230 45678',
+        email: 'rahul.sharma@example.com',
+        lastDonationDate: new Date(Date.now() - 110 * 24 * 3600 * 1000).toISOString().split('T')[0],
+        isEligible: true,
+        eligibleQuantity: '450 ml',
+        daysCooldown: 0,
+        cooldownPeriodMonths: 3,
+        medicalConditions: 'Healthy, no surgery or recent tattoos',
+        points: 250,
+        donorLevel: 'Silver Guardian',
+        status: 'registered',
+        createdAt: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString()
+      },
+      {
+        id: 'reg_mumbai_02',
+        donorId: 'JS-DON-58219',
+        rfidUid: '7B:3E:91:A2',
+        aadhaarNumber: 'XXXX-XXXX-9912',
+        fullName: 'Sneha Patil',
+        gender: 'Female',
+        age: 24,
+        weightKg: 54,
+        bloodGroup: 'B+',
+        city: 'Mumbai',
+        phone: '+91 97654 32109',
+        email: 'sneha.patil@example.com',
+        lastDonationDate: new Date(Date.now() - 140 * 24 * 3600 * 1000).toISOString().split('T')[0],
+        isEligible: true,
+        eligibleQuantity: '350 ml',
+        daysCooldown: 0,
+        cooldownPeriodMonths: 4,
+        medicalConditions: 'Normal vitals, eligible for whole blood donation',
+        points: 400,
+        donorLevel: 'Gold Lifesaver',
+        status: 'contacted',
+        createdAt: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString()
+      },
+      {
+        id: 'reg_pune_03',
+        donorId: 'JS-DON-31804',
+        rfidUid: '5C:1D:8E:44',
+        aadhaarNumber: 'XXXX-XXXX-3345',
+        fullName: 'Amit Verma',
+        gender: 'Male',
+        age: 31,
+        weightKg: 72,
+        bloodGroup: 'A-',
+        city: 'Pune',
+        phone: '+91 98901 23456',
+        email: 'amit.verma@example.com',
+        lastDonationDate: new Date(Date.now() - 25 * 24 * 3600 * 1000).toISOString().split('T')[0],
+        isEligible: false,
+        eligibleQuantity: '450 ml',
+        daysCooldown: 65,
+        cooldownPeriodMonths: 3,
+        ineligibilityReason: 'Men must wait 3 months (90 days) between blood donations. 65 days remaining in cooldown.',
+        medicalConditions: 'Healthy, active cooldown',
+        points: 150,
+        donorLevel: 'Bronze Donor',
+        status: 'registered',
+        createdAt: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString()
+      },
+      {
+        id: 'reg_nagpur_04',
+        donorId: 'JS-DON-77312',
+        rfidUid: '9D:4A:2C:77',
+        aadhaarNumber: 'XXXX-XXXX-6789',
+        fullName: 'Priya Deshmukh',
+        gender: 'Female',
+        age: 29,
+        weightKg: 58,
+        bloodGroup: 'AB+',
+        city: 'Nagpur',
+        phone: '+91 94221 87654',
+        email: 'priya.deshmukh@example.com',
+        lastDonationDate: new Date(Date.now() - 40 * 24 * 3600 * 1000).toISOString().split('T')[0],
+        isEligible: false,
+        eligibleQuantity: '350 ml',
+        daysCooldown: 80,
+        cooldownPeriodMonths: 4,
+        ineligibilityReason: 'Women must wait 4 months (120 days) between blood donations. 80 days remaining in cooldown.',
+        medicalConditions: 'Normal vitals, active cooldown',
+        points: 100,
+        donorLevel: 'Bronze Donor',
+        status: 'registered',
+        createdAt: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString()
+      }
+    ];
+  }
+
+  private getSeedPeerHospitalRequests(): PeerHospitalRequest[] {
+    return [
+      {
+        id: 'peer_req_01',
+        fromHospitalId: 'hosp_nagpur_aiims',
+        fromHospitalName: 'AIIMS Nagpur Super Specialty',
+        fromCity: 'Nagpur',
+        toHospitalId: 'hosp_nagpur_alexis',
+        toHospitalName: 'Alexis Multispecialty Hospital',
+        toCity: 'Nagpur',
+        category: 'blood',
+        item: 'PRBC B+ (Packed Red Blood Cells)',
+        units: 3,
+        urgency: 'Critical',
+        patientRef: 'PAT-TRAUMA-991',
+        reason: 'Multiple vehicle collision victim requiring urgent crossmatched transfusion.',
+        status: 'dispatched',
+        createdAt: new Date(Date.now() - 3 * 3600 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 1 * 3600 * 1000).toISOString()
+      },
+      {
+        id: 'peer_req_02',
+        fromHospitalId: 'hosp_mumbai_kem',
+        fromHospitalName: 'KEM Hospital & Research Center',
+        fromCity: 'Mumbai',
+        toHospitalId: 'hosp_mumbai_lilavati',
+        toHospitalName: 'Lilavati Hospital & Research Centre',
+        toCity: 'Mumbai',
+        category: 'organ',
+        item: 'Kidney (Organ Transplant)',
+        units: 1,
+        urgency: 'Critical',
+        patientRef: 'PAT-TX-8402',
+        reason: 'NOTTO-approved organ sharing protocol for brain-stem donor compatibility.',
+        status: 'approved',
+        createdAt: new Date(Date.now() - 5 * 3600 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString()
+      },
+      {
+        id: 'peer_req_03',
+        fromHospitalId: 'hosp_pune_ruby',
+        fromHospitalName: 'Ruby Hall Clinic',
+        fromCity: 'Pune',
+        toHospitalId: 'hosp_pune_sassoon',
+        toHospitalName: 'Sassoon General Hospital',
+        toCity: 'Pune',
+        category: 'blood',
+        item: 'Platelets (Apheresis Unit) O-',
+        units: 4,
+        urgency: 'Urgent',
+        patientRef: 'PAT-ONCO-412',
+        reason: 'Dengue hemorrhagic / leukemia support protocol.',
+        status: 'requested',
+        createdAt: new Date(Date.now() - 1 * 3600 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 1 * 3600 * 1000).toISOString()
+      }
+    ];
   }
 
   private saveState(state: JeevanSetuState) {
@@ -578,6 +796,143 @@ class BloodService {
 
   public getNearbyDonorsForRequest(req: EmergencyRequest): Array<DonorEntity & { distanceKm: number; etaMinutes: number; maskedPhone: string }> {
     return findEligibleDonors(req.hospitalLocation, req.bloodGroup, this.state.donors);
+  }
+
+  // --- Real-time Donor Registrations ---
+  public getDonorRegistrations(): DonorRegistration[] {
+    return this.state.donorRegistrations || [];
+  }
+
+  public addDonorRegistration(reg: Omit<DonorRegistration, 'id' | 'createdAt'> & { id?: string }): DonorRegistration {
+    const id = reg.id || `reg_${Date.now()}`;
+    const newReg: DonorRegistration = {
+      ...reg,
+      id,
+      createdAt: new Date().toISOString()
+    };
+    if (!this.state.donorRegistrations) {
+      this.state.donorRegistrations = [];
+    }
+    this.state.donorRegistrations.unshift(newReg);
+
+    // Also register or update in donor directory
+    this.addOrUpdateDonor({
+      id: newReg.id,
+      name: newReg.fullName,
+      bloodGroup: newReg.bloodGroup,
+      city: newReg.city,
+      phone: newReg.phone,
+      gender: newReg.gender,
+      available: newReg.isEligible,
+      verified: true
+    });
+
+    this.saveState(this.state);
+    return newReg;
+  }
+
+  public updateDonorRegistration(id: string, updates: Partial<DonorRegistration>): void {
+    if (!this.state.donorRegistrations) return;
+    const idx = this.state.donorRegistrations.findIndex(r => r.id === id || r.donorId === id);
+    if (idx >= 0) {
+      this.state.donorRegistrations[idx] = {
+        ...this.state.donorRegistrations[idx],
+        ...updates
+      };
+      this.saveState(this.state);
+    }
+  }
+
+  // --- Real-time Peer-to-Peer Inter-Hospital Requests ---
+  public getPeerHospitalRequests(): PeerHospitalRequest[] {
+    return this.state.peerHospitalRequests || [];
+  }
+
+  public createPeerHospitalRequest(req: Omit<PeerHospitalRequest, 'id' | 'createdAt' | 'updatedAt' | 'status'>): PeerHospitalRequest {
+    const id = `peer_req_${Date.now()}`;
+    const newReq: PeerHospitalRequest = {
+      ...req,
+      id,
+      status: 'requested',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    if (!this.state.peerHospitalRequests) {
+      this.state.peerHospitalRequests = [];
+    }
+    this.state.peerHospitalRequests.unshift(newReq);
+    this.saveState(this.state);
+    return newReq;
+  }
+
+  public updatePeerHospitalRequest(id: string, status: PeerHospitalRequest['status'], note?: string): void {
+    if (!this.state.peerHospitalRequests) return;
+    const req = this.state.peerHospitalRequests.find(r => r.id === id);
+    if (!req) return;
+    req.status = status;
+    req.updatedAt = new Date().toISOString();
+    this.saveState(this.state);
+  }
+
+  // --- Hardware IoT RFID Verifier Simulator / Logic ---
+  public verifyHardwareRfid(rfidInput: string): {
+    success: boolean;
+    authorized: boolean;
+    donor?: DonorRegistration;
+    message: string;
+    oledLines: string[];
+  } {
+    const cleanRfid = rfidInput.trim().toUpperCase();
+    const donor = (this.state.donorRegistrations || []).find(
+      d => d.rfidUid.toUpperCase() === cleanRfid || 
+           d.donorId.toUpperCase() === cleanRfid ||
+           d.aadhaarNumber.includes(cleanRfid)
+    );
+
+    if (!donor) {
+      return {
+        success: false,
+        authorized: false,
+        message: 'RFID Card not registered in JeevanSetu database. Access Denied.',
+        oledLines: [
+          'STATUS: ACCESS DENIED',
+          'NOT REGISTERED',
+          'Scan Authorized Card',
+          'Emergency Hotline: 108'
+        ]
+      };
+    }
+
+    if (!donor.isEligible || donor.daysCooldown > 0) {
+      return {
+        success: false,
+        authorized: false,
+        donor,
+        message: `Donor ${donor.fullName} is currently in statutory cooldown (${donor.daysCooldown} days remaining).`,
+        oledLines: [
+          'STATUS: COOLDOWN ACTIVE',
+          `Donor: ${donor.fullName.slice(0, 16)}`,
+          `Days Left: ${donor.daysCooldown} Days`,
+          `Rule: ${donor.gender === 'Female' ? '4 Mo (120d)' : '3 Mo (90d)'}`
+        ]
+      };
+    }
+
+    // Mark as arrived & verified at hospital
+    this.updateDonorRegistration(donor.id, { status: 'verified_at_hospital' });
+
+    return {
+      success: true,
+      authorized: true,
+      donor,
+      message: `Verified: ${donor.fullName} (${donor.bloodGroup}) is authorized & eligible to donate ${donor.eligibleQuantity}!`,
+      oledLines: [
+        '** VERIFIED DONOR **',
+        `Name: ${donor.fullName.slice(0, 16)}`,
+        `Blood: ${donor.bloodGroup} | ${donor.eligibleQuantity}`,
+        `Last Don: ${donor.lastDonationDate || 'First Time'}`
+      ]
+    };
   }
 }
 

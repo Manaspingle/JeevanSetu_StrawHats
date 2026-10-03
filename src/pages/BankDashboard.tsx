@@ -480,8 +480,6 @@ export default function BankDashboard() {
         confirmLabel="Quarantine Unit"
         isDestructive={true}
       />
-
-      <EmergencyBottomBar />
     </div>
   );
 }

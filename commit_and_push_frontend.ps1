@@ -68,7 +68,8 @@ $frontendTargets = @(
     "DESIGN.md",
     "commit_and_push_frontend.ps1",
     "commit_and_push_frontend.bat",
-    "push_frontend_features.ps1"
+    "push_frontend_features.ps1",
+    "hardware"
 )
 
 foreach ($target in $frontendTargets) {

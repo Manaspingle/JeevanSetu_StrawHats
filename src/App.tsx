@@ -45,14 +45,8 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/admin"
-          element={
-            <ProtectedRoute requiredRole="hospital">
-              <AdminDashboard />
-            </ProtectedRoute>
-          }
-        />
+        {/* Admin redirect */}
+        <Route path="/admin" element={<Navigate to="/hospital" replace />} />
 
         {/* Compatibility Redirects */}
         <Route path="/dashboard" element={<Navigate to="/donor" replace />} />

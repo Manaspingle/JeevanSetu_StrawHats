@@ -1,17 +1,12 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-export type ThemeMode = 'default' | 'clinical';
-export type TextSize = 'sm' | 'base' | 'lg';
+export type ThemeMode = 'light' | 'dark';
 
 interface ThemeContextType {
   themeMode: ThemeMode;
-  setThemeMode: (mode: ThemeMode) => void;
+  isDark: boolean;
   toggleThemeMode: () => void;
-  highContrast: boolean;
-  toggleHighContrast: () => void;
-  textSize: TextSize;
-  setTextSize: (size: TextSize) => void;
-  cycleTextSize: () => void;
+  setThemeMode: (mode: ThemeMode) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -19,68 +14,32 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [themeMode, setThemeModeState] = useState<ThemeMode>(() => {
     const saved = localStorage.getItem('js_theme_mode');
-    return saved === 'clinical' ? 'clinical' : 'default';
-  });
-
-  const [highContrast, setHighContrastState] = useState<boolean>(() => {
-    return localStorage.getItem('js_high_contrast') === 'true';
-  });
-
-  const [textSize, setTextSizeState] = useState<TextSize>(() => {
-    const saved = localStorage.getItem('js_text_size');
-    return (saved === 'sm' || saved === 'lg') ? saved : 'base';
+    if (saved === 'dark' || saved === 'light') return saved;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   });
 
   useEffect(() => {
     const root = document.documentElement;
-
-    // Apply Theme
-    if (themeMode === 'clinical') {
-      root.setAttribute('data-theme', 'clinical');
+    if (themeMode === 'dark') {
+      root.classList.add('dark');
+      root.setAttribute('data-theme', 'dark');
     } else {
-      root.removeAttribute('data-theme');
+      root.classList.remove('dark');
+      root.setAttribute('data-theme', 'light');
     }
     localStorage.setItem('js_theme_mode', themeMode);
-
-    // Apply High Contrast
-    if (highContrast) {
-      root.setAttribute('data-contrast', 'high');
-    } else {
-      root.removeAttribute('data-contrast');
-    }
-    localStorage.setItem('js_high_contrast', highContrast.toString());
-
-    // Apply Text Scale
-    root.setAttribute('data-text-size', textSize);
-    localStorage.setItem('js_text_size', textSize);
-  }, [themeMode, highContrast, textSize]);
+  }, [themeMode]);
 
   const toggleThemeMode = () => {
-    setThemeModeState(prev => prev === 'default' ? 'clinical' : 'default');
-  };
-
-  const toggleHighContrast = () => {
-    setHighContrastState(prev => !prev);
-  };
-
-  const cycleTextSize = () => {
-    setTextSizeState(prev => {
-      if (prev === 'sm') return 'base';
-      if (prev === 'base') return 'lg';
-      return 'sm';
-    });
+    setThemeModeState(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
   return (
     <ThemeContext.Provider value={{
       themeMode,
-      setThemeMode: setThemeModeState,
+      isDark: themeMode === 'dark',
       toggleThemeMode,
-      highContrast,
-      toggleHighContrast,
-      textSize,
-      setTextSize: setTextSizeState,
-      cycleTextSize
+      setThemeMode: setThemeModeState,
     }}>
       {children}
     </ThemeContext.Provider>
