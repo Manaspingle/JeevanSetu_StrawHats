@@ -7,6 +7,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+.pio/
 dist
 dist-ssr
 *.local
@@ -26,4 +27,3 @@ dist-ssr
 *.local
 push_*.ps1
 commit_and_push.*
-
