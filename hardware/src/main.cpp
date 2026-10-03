@@ -71,12 +71,9 @@ struct DonorRecord {
   bool isAuthorized;
 };
 
-// Database of registered donors
+// Database of registered donors: ONLY Rahul Sharma is registered, ALL other cards are UNREGISTERED
 const DonorRecord REGISTERED_DONORS[] = {
-  { "A4:8B:2F:10", "Rahul Sharma",  "Male",   "O+",  68, "12 July 2026",   110, true },
-  { "7B:3E:91:A2", "Sneha Patil",   "Female", "B+",  54, "15 May 2026",    140, true },
-  { "5C:1D:8E:44", "Amit Verma",    "Male",   "A-",  72, "08 Sept 2026",    25, true },  // Cooldown (<90d)
-  { "9D:4A:2C:77", "Priya Deshmukh","Female", "AB+", 58, "24 Aug 2026",     40, true }   // Cooldown (<120d)
+  { "A4:8B:2F:10", "Rahul Sharma",  "Male",   "O+",  68, "12 July 2026",   110, true }
 };
 const int NUM_REGISTERED_DONORS = sizeof(REGISTERED_DONORS) / sizeof(REGISTERED_DONORS[0]);
 

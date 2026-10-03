@@ -603,9 +603,9 @@ export default function HospitalDashboard() {
               </div>
 
               <div className="space-y-1.5 pt-1">
-                <p className="text-[11px] font-bold opacity-75">Quick Select Registered Cards:</p>
+                <p className="text-[11px] font-bold opacity-75">Quick Select Test Cards:</p>
                 <div className="space-y-1">
-                  {registrations.slice(0, 3).map(r => (
+                  {registrations.map(r => (
                     <button
                       key={r.id}
                       type="button"
@@ -613,13 +613,25 @@ export default function HospitalDashboard() {
                         setRfidInput(r.rfidUid);
                         handleTestRfidScan(r.rfidUid);
                       }}
-                      className="w-full text-left p-2 rounded-xl border text-[11px] flex items-center justify-between transition hover:border-orange-500"
+                      className="w-full text-left p-2 rounded-xl border text-[11px] flex items-center justify-between transition hover:border-emerald-500"
                       style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
                     >
-                      <span className="font-bold">{r.fullName} ({r.bloodGroup})</span>
-                      <span className="font-mono text-orange-600 font-bold">{r.rfidUid}</span>
+                      <span className="font-bold text-emerald-600">✓ {r.fullName} ({r.bloodGroup}) [REGISTERED]</span>
+                      <span className="font-mono text-emerald-600 font-bold">{r.rfidUid}</span>
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRfidInput('7B:3E:91:A2');
+                      handleTestRfidScan('7B:3E:91:A2');
+                    }}
+                    className="w-full text-left p-2 rounded-xl border text-[11px] flex items-center justify-between transition hover:border-rose-500"
+                    style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+                  >
+                    <span className="font-bold text-rose-500">✕ Other Card (7B:3E:91:A2) [UNREGISTERED]</span>
+                    <span className="font-mono text-rose-500 font-bold">7B:3E:91:A2</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -629,7 +641,7 @@ export default function HospitalDashboard() {
                     className="w-full text-left p-2 rounded-xl border text-[11px] flex items-center justify-between transition hover:border-rose-500"
                     style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
                   >
-                    <span className="font-bold text-rose-500">Unregistered / Fraud Card</span>
+                    <span className="font-bold text-rose-500">✕ Fraud / Any Other UID [UNREGISTERED]</span>
                     <span className="font-mono text-rose-500 font-bold">FF:FF:FF:FF</span>
                   </button>
                 </div>

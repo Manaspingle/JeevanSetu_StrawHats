@@ -16,7 +16,7 @@ import type {
   UrgencyLevel
 } from '@/types/blood';
 
-const STORAGE_KEY = 'jeevansetu_state_v1';
+const STORAGE_KEY = 'jeevansetu_state_v3';
 
 export interface DonorRegistration {
   id: string;
@@ -192,80 +192,6 @@ class BloodService {
         donorLevel: 'Silver Guardian',
         status: 'registered',
         createdAt: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString()
-      },
-      {
-        id: 'reg_mumbai_02',
-        donorId: 'JS-DON-58219',
-        rfidUid: '7B:3E:91:A2',
-        aadhaarNumber: 'XXXX-XXXX-9912',
-        fullName: 'Sneha Patil',
-        gender: 'Female',
-        age: 24,
-        weightKg: 54,
-        bloodGroup: 'B+',
-        city: 'Mumbai',
-        phone: '+91 97654 32109',
-        email: 'sneha.patil@example.com',
-        lastDonationDate: new Date(Date.now() - 140 * 24 * 3600 * 1000).toISOString().split('T')[0],
-        isEligible: true,
-        eligibleQuantity: '350 ml',
-        daysCooldown: 0,
-        cooldownPeriodMonths: 4,
-        medicalConditions: 'Normal vitals, eligible for whole blood donation',
-        points: 400,
-        donorLevel: 'Gold Lifesaver',
-        status: 'contacted',
-        createdAt: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString()
-      },
-      {
-        id: 'reg_pune_03',
-        donorId: 'JS-DON-31804',
-        rfidUid: '5C:1D:8E:44',
-        aadhaarNumber: 'XXXX-XXXX-3345',
-        fullName: 'Amit Verma',
-        gender: 'Male',
-        age: 31,
-        weightKg: 72,
-        bloodGroup: 'A-',
-        city: 'Pune',
-        phone: '+91 98901 23456',
-        email: 'amit.verma@example.com',
-        lastDonationDate: new Date(Date.now() - 25 * 24 * 3600 * 1000).toISOString().split('T')[0],
-        isEligible: false,
-        eligibleQuantity: '450 ml',
-        daysCooldown: 65,
-        cooldownPeriodMonths: 3,
-        ineligibilityReason: 'Men must wait 3 months (90 days) between blood donations. 65 days remaining in cooldown.',
-        medicalConditions: 'Healthy, active cooldown',
-        points: 150,
-        donorLevel: 'Bronze Donor',
-        status: 'registered',
-        createdAt: new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString()
-      },
-      {
-        id: 'reg_nagpur_04',
-        donorId: 'JS-DON-77312',
-        rfidUid: '9D:4A:2C:77',
-        aadhaarNumber: 'XXXX-XXXX-6789',
-        fullName: 'Priya Deshmukh',
-        gender: 'Female',
-        age: 29,
-        weightKg: 58,
-        bloodGroup: 'AB+',
-        city: 'Nagpur',
-        phone: '+91 94221 87654',
-        email: 'priya.deshmukh@example.com',
-        lastDonationDate: new Date(Date.now() - 40 * 24 * 3600 * 1000).toISOString().split('T')[0],
-        isEligible: false,
-        eligibleQuantity: '350 ml',
-        daysCooldown: 80,
-        cooldownPeriodMonths: 4,
-        ineligibilityReason: 'Women must wait 4 months (120 days) between blood donations. 80 days remaining in cooldown.',
-        medicalConditions: 'Normal vitals, active cooldown',
-        points: 100,
-        donorLevel: 'Bronze Donor',
-        status: 'registered',
-        createdAt: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString()
       }
     ];
   }
