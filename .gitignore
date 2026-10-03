@@ -25,5 +25,9 @@ dist-ssr
 .env.*
 !.env.example
 *.local
+.bolt/
 push_*.ps1
-commit_and_push.*
+commit_and_push.ps1
+commit_and_push.bat
+!commit_and_push_frontend.ps1
+!commit_and_push_frontend.bat

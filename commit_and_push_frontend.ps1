@@ -68,8 +68,9 @@ $frontendTargets = @(
     "DESIGN.md",
     "commit_and_push_frontend.ps1",
     "commit_and_push_frontend.bat",
-    "push_frontend_features.ps1",
-    "hardware"
+    "hardware",
+    "vercel.json",
+    "platformio.ini"
 )
 
 foreach ($target in $frontendTargets) {
@@ -84,7 +85,6 @@ $backendExcludes = @(
     "firestore.indexes.json",
     "firebase.json",
     "src/tests",
-    "vercel.json",
     ".env.local",
     ".env.example"
 )
