@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
+import { useLanguage, type Language } from '@/context/LanguageContext';
 import {
-  Heart, Building2, Activity, Sun, Moon,
-  LogIn, LogOut, Menu, X, UserCheck, Shield
+  Heart, Building2, Activity, ShieldCheck, Sun, Moon,
+  LogIn, LogOut, Menu, X, UserCheck, Eye, Type, Globe, Sparkles
 } from 'lucide-react';
 
 export default function Navbar() {
-  const { theme, toggleTheme } = useTheme();
+  const { themeMode, toggleThemeMode, highContrast, toggleHighContrast, textSize, setTextSize } = useTheme();
+  const { language, setLanguage, t } = useLanguage();
   const { session, profile, role, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -20,52 +22,142 @@ export default function Navbar() {
     setMobileMenuOpen(false);
   };
 
-  const navButtons = [
-    { 
-      to: '/donor', 
-      label: 'Donor Dashboard', 
-      icon: Heart,
-      accentColor: 'hover:text-rose-600 hover:border-rose-500'
-    },
-    { 
-      to: '/hospital', 
-      label: 'Hospital Dashboard', 
-      icon: Building2,
-      accentColor: 'hover:text-blue-600 hover:border-blue-500'
-    },
-    { 
-      to: '/bank', 
-      label: 'Blood Bank Dashboard', 
-      icon: Activity,
-      accentColor: 'hover:text-emerald-600 hover:border-emerald-500'
-    }
+  const navLinks = [
+    { to: '/donor', label: language === 'mr' ? 'रक्तदाता' : language === 'hi' ? 'रक्तदाता' : 'Donor View', icon: Heart },
+    { to: '/hospital', label: language === 'mr' ? 'रुग्णालय' : language === 'hi' ? 'अस्पताल' : 'Hospital View', icon: Building2 },
+    { to: '/bank', label: language === 'mr' ? 'रक्तपेढी' : language === 'hi' ? 'रक्त बैंक' : 'Blood Bank View', icon: Activity },
+    { to: '/admin', label: language === 'mr' ? 'प्रशासन व डेमो' : language === 'hi' ? 'प्रशासन व डेमो' : 'Admin & Demo', icon: ShieldCheck, highlight: true }
   ];
 
   return (
     <>
-      {/* Top Government Portal Identifier Stripe (eRaktKosh inspired) */}
-      <div className="bg-slate-900 text-slate-300 text-[11px] font-medium py-1 px-4 border-b border-slate-800">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+      {/* WCAG 2.2 AA Skip to content link */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:rounded-lg focus:font-bold focus:shadow-lg js-focus-ring"
+        style={{
+          backgroundColor: 'var(--color-primary)',
+          color: '#FFFFFF'
+        }}
+      >
+        Skip to main content
+      </a>
+
+      {/* Top Accessibility & Language Header Bar */}
+      <div 
+        className="text-xs py-1.5 px-4 border-b transition-colors"
+        style={{
+          backgroundColor: 'var(--color-navy)',
+          borderColor: 'var(--color-border)',
+          color: '#FFFFFF'
+        }}
+      >
+        <div className="max-w-[1200px] mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-semibold text-white">Ministry of Health &amp; Family Welfare Network</span>
-            <span className="hidden sm:inline text-slate-400">| National Blood Transfusion Initiative</span>
+            <span 
+              className="w-2 h-2 rounded-full inline-block animate-pulse"
+              style={{ backgroundColor: 'var(--color-success-fill)' }}
+            />
+            <span className="font-semibold text-[11px] sm:text-xs">
+              JeevanSetu Action-First Blood &amp; Transfusion Network
+            </span>
           </div>
+
+          {/* Accessibility Controls Toolbar */}
           <div className="flex items-center gap-3">
-            <span className="text-slate-400">Toll-Free Blood Helpline:</span>
-            <span className="font-bold text-amber-400 tracking-wide">104 / 1910</span>
+            {/* Language Selector (EN / HI / MR) */}
+            <div className="flex items-center gap-1 bg-white/10 px-2 py-0.5 rounded-lg border border-white/20">
+              <Globe className="w-3.5 h-3.5 text-white/80" />
+              <button
+                onClick={() => setLanguage('en')}
+                className={`px-1.5 py-0.5 text-[11px] font-bold rounded ${language === 'en' ? 'bg-white text-slate-900' : 'text-white/80 hover:text-white'}`}
+                aria-label="Switch to English"
+              >
+                EN
+              </button>
+              <button
+                onClick={() => setLanguage('hi')}
+                className={`px-1.5 py-0.5 text-[11px] font-bold rounded ${language === 'hi' ? 'bg-white text-slate-900' : 'text-white/80 hover:text-white'}`}
+                aria-label="हिंदी में बदलें"
+              >
+                HI
+              </button>
+              <button
+                onClick={() => setLanguage('mr')}
+                className={`px-1.5 py-0.5 text-[11px] font-bold rounded ${language === 'mr' ? 'bg-white text-slate-900' : 'text-white/80 hover:text-white'}`}
+                aria-label="मराठीत बदला"
+              >
+                MR
+              </button>
+            </div>
+
+            {/* Text Size Controls (A- A A+) */}
+            <div className="flex items-center gap-0.5 bg-white/10 px-1.5 py-0.5 rounded-lg border border-white/20">
+              <button
+                onClick={() => setTextSize('sm')}
+                className={`px-1.5 py-0.5 text-[11px] font-bold rounded ${textSize === 'sm' ? 'bg-white text-slate-900' : 'text-white/80 hover:text-white'}`}
+                aria-label="Smaller text size"
+                title="Text Size: Small (14px)"
+              >
+                A-
+              </button>
+              <button
+                onClick={() => setTextSize('base')}
+                className={`px-1.5 py-0.5 text-[11px] font-bold rounded ${textSize === 'base' ? 'bg-white text-slate-900' : 'text-white/80 hover:text-white'}`}
+                aria-label="Default text size"
+                title="Text Size: Default (16px)"
+              >
+                A
+              </button>
+              <button
+                onClick={() => setTextSize('lg')}
+                className={`px-1.5 py-0.5 text-[11px] font-bold rounded ${textSize === 'lg' ? 'bg-white text-slate-900' : 'text-white/80 hover:text-white'}`}
+                aria-label="Larger text size"
+                title="Text Size: Large (18px)"
+              >
+                A+
+              </button>
+            </div>
+
+            {/* High Contrast Toggle */}
+            <button
+              onClick={toggleHighContrast}
+              aria-label="Toggle high contrast mode"
+              title={highContrast ? 'Disable High Contrast' : 'Enable High Contrast'}
+              className={`p-1 rounded-lg border transition ${highContrast ? 'bg-amber-400 text-slate-950 border-amber-300' : 'bg-white/10 text-white/80 border-white/20 hover:text-white'}`}
+            >
+              <Eye className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Clinical Trust vs Life & Care Theme Switch */}
+            <button
+              onClick={toggleThemeMode}
+              aria-label="Toggle Clinical Trust vs Life & Care theme"
+              title={themeMode === 'clinical' ? 'Switch to Life & Care Theme' : 'Switch to Clinical Trust Theme'}
+              className="p-1 rounded-lg bg-white/10 border border-white/20 text-white/80 hover:text-white transition flex items-center gap-1 text-[11px] font-bold"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span className="hidden md:inline">{themeMode === 'clinical' ? 'Clinical' : 'Life & Care'}</span>
+            </button>
           </div>
         </div>
       </div>
 
-      <header className="sticky top-0 z-50 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Main Navigation Bar */}
+      <header 
+        className="sticky top-0 z-40 border-b backdrop-blur-md transition-colors"
+        style={{
+          backgroundColor: 'var(--color-surface)',
+          borderColor: 'var(--color-border)'
+        }}
+      >
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
           <div className="flex justify-between items-center h-20">
             
             {/* Left Corner: Uploaded Logo + JeevanSetu Name + Tagline */}
             <Link 
               to="/" 
-              className="flex items-center gap-3.5 group focus:outline-none focus:ring-2 focus:ring-rose-500 rounded-xl p-1"
+              className="flex items-center gap-3.5 group js-focus-ring rounded-xl p-1"
               onClick={() => setMobileMenuOpen(false)}
             >
               <img
@@ -74,158 +166,150 @@ export default function Navbar() {
                 className="h-12 w-auto object-contain drop-shadow-sm group-hover:scale-105 transition-transform"
               />
               <div className="flex flex-col text-left">
-                <span className="font-black text-2xl tracking-tight text-slate-900 dark:text-white leading-tight flex items-center gap-1.5">
-                  जीवन<span className="text-rose-600">Setu</span>
+                <span className="font-black text-2xl tracking-tight leading-tight flex items-center gap-1" style={{ color: 'var(--color-navy)' }}>
+                  जीवन<span style={{ color: 'var(--color-primary)' }}>Setu</span>
                 </span>
-                <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 leading-none tracking-wide">
+                <span className="text-[11px] font-semibold leading-none tracking-wide opacity-80" style={{ color: 'var(--color-navy)' }}>
                   रक्ताचा सेतू, जीवनाचा आधार
                 </span>
               </div>
             </Link>
 
-            {/* Desktop Navigation: Ordered exactly from left to right as specified:
-                1. Donor Dashboard button
-                2. Hospital Dashboard button
-                3. Blood Bank Dashboard button
-                4. Light/Dark theme option
-                5. Login/Signup option
-            */}
-            <nav className="hidden lg:flex items-center gap-2" aria-label="Main Navigation">
-              {navButtons.map(({ to, label, icon: Icon, accentColor }) => {
+            {/* Desktop Navigation: 4 Role Views */}
+            <nav className="hidden lg:flex items-center gap-2" aria-label="Main Role Portals">
+              {navLinks.map(({ to, label, icon: Icon, highlight }) => {
                 const isActive = location.pathname === to;
                 return (
                   <Link
                     key={to}
                     to={to}
-                    className={`min-h-[42px] px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 border ${
+                    className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 border js-focus-ring ${
                       isActive
-                        ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border-rose-300 dark:border-rose-800 shadow-sm'
-                        : `bg-slate-50 dark:bg-slate-900/90 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-800 ${accentColor}`
+                        ? 'shadow-sm'
+                        : ''
                     }`}
+                    style={{
+                      backgroundColor: isActive ? 'var(--color-bg)' : 'var(--color-surface)',
+                      borderColor: isActive ? 'var(--color-primary)' : 'var(--color-border)',
+                      color: isActive ? 'var(--color-primary)' : 'var(--color-navy)'
+                    }}
                   >
-                    <Icon className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                    <Icon className="w-4 h-4 shrink-0" style={{ color: highlight ? 'var(--color-primary)' : 'inherit' }} />
                     <span>{label}</span>
                   </Link>
                 );
               })}
 
-              {/* 4. Light/Dark theme option */}
-              <button
-                onClick={toggleTheme}
-                aria-label="Toggle visual theme"
-                className="min-h-[42px] min-w-[42px] flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:text-rose-600 dark:hover:text-rose-400 transition border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500 ml-1"
-                title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
-              >
-                {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
-              </button>
-
-              {/* 5. Login / Signup option */}
+              {/* Login / Signup / Profile */}
               {session || profile ? (
-                <div className="flex items-center gap-2 ml-1">
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200">
-                    <UserCheck className="w-3.5 h-3.5 text-emerald-500" />
+                <div className="flex items-center gap-2 ml-2 pl-2 border-l" style={{ borderColor: 'var(--color-border)' }}>
+                  <div 
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border"
+                    style={{
+                      backgroundColor: 'var(--color-bg)',
+                      borderColor: 'var(--color-border)',
+                      color: 'var(--color-navy)'
+                    }}
+                  >
+                    <UserCheck className="w-4 h-4" style={{ color: 'var(--color-success-text)' }} />
                     <span className="capitalize">{role || 'User'}</span>
                   </div>
                   <button
                     onClick={handleSignOut}
-                    className="min-h-[42px] px-3 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-800 transition flex items-center gap-1.5"
+                    className="min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 js-focus-ring"
+                    style={{
+                      backgroundColor: 'var(--color-surface)',
+                      borderColor: 'var(--color-border)',
+                      color: 'var(--color-navy)'
+                    }}
                     title="Sign Out"
                   >
                     <LogOut className="w-4 h-4" />
-                    <span className="hidden xl:inline">Logout</span>
+                    <span>Sign Out</span>
                   </button>
                 </div>
               ) : (
                 <Link
                   to="/auth"
-                  className="min-h-[42px] px-4 py-2 bg-gradient-to-r from-rose-700 to-rose-600 hover:from-rose-800 hover:to-rose-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition active:scale-95 ml-1"
+                  className="min-h-[44px] px-4 py-2 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition active:scale-95 ml-2 js-focus-ring"
+                  style={{
+                    backgroundColor: 'var(--color-primary)'
+                  }}
                 >
                   <LogIn className="w-4 h-4" />
-                  <span>Login / Signup</span>
+                  <span>Login / Register</span>
                 </Link>
               )}
             </nav>
 
-            {/* Mobile Menu & Theme Actions */}
+            {/* Mobile Hamburger Button */}
             <div className="flex lg:hidden items-center gap-2">
               <button
-                onClick={toggleTheme}
-                aria-label="Toggle theme"
-                className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800"
-              >
-                {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
-              </button>
-
-              <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-800"
-                aria-label="Toggle mobile menu"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl border js-focus-ring"
+                style={{
+                  backgroundColor: 'var(--color-surface)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-navy)'
+                }}
+                aria-label="Toggle navigation menu"
+                aria-expanded={mobileMenuOpen}
               >
                 {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
             </div>
+
           </div>
         </div>
 
         {/* Mobile Navigation Drawer */}
         {mobileMenuOpen && (
-          <div className="lg:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-4 py-5 space-y-3 animate-in fade-in slide-in-from-top-4 duration-200 shadow-xl">
-            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-1">
-              Select Portal Dashboard
+          <div 
+            className="lg:hidden border-t px-4 py-5 space-y-3 shadow-xl animate-in fade-in slide-in-from-top-4"
+            style={{
+              backgroundColor: 'var(--color-surface)',
+              borderColor: 'var(--color-border)'
+            }}
+          >
+            <div className="text-[11px] font-bold uppercase tracking-wider opacity-60" style={{ color: 'var(--color-navy)' }}>
+              Portal Dashboards
             </div>
-            
-            {/* 1. Donor Dashboard */}
-            <Link
-              to="/donor"
-              onClick={() => setMobileMenuOpen(false)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold border ${
-                location.pathname === '/donor'
-                  ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 border-rose-300 dark:border-rose-900'
-                  : 'bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-800'
-              }`}
-            >
-              <Heart className="w-5 h-5 text-rose-600" />
-              <span>Donor Dashboard</span>
-            </Link>
 
-            {/* 2. Hospital Dashboard */}
-            <Link
-              to="/hospital"
-              onClick={() => setMobileMenuOpen(false)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold border ${
-                location.pathname === '/hospital'
-                  ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 border-blue-300 dark:border-blue-900'
-                  : 'bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-800'
-              }`}
-            >
-              <Building2 className="w-5 h-5 text-blue-600" />
-              <span>Hospital Dashboard</span>
-            </Link>
+            {navLinks.map(({ to, label, icon: Icon }) => (
+              <Link
+                key={to}
+                to={to}
+                onClick={() => setMobileMenuOpen(false)}
+                className="min-h-[44px] flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold border js-focus-ring"
+                style={{
+                  backgroundColor: location.pathname === to ? 'var(--color-bg)' : 'var(--color-surface)',
+                  borderColor: location.pathname === to ? 'var(--color-primary)' : 'var(--color-border)',
+                  color: location.pathname === to ? 'var(--color-primary)' : 'var(--color-navy)'
+                }}
+              >
+                <Icon className="w-5 h-5" />
+                <span>{label}</span>
+              </Link>
+            ))}
 
-            {/* 3. Blood Bank Dashboard */}
-            <Link
-              to="/bank"
-              onClick={() => setMobileMenuOpen(false)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold border ${
-                location.pathname === '/bank'
-                  ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 border-emerald-300 dark:border-emerald-900'
-                  : 'bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-800'
-              }`}
-            >
-              <Activity className="w-5 h-5 text-emerald-600" />
-              <span>Blood Bank Dashboard</span>
-            </Link>
-
-            <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+            <div className="pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
               {session || profile ? (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 text-xs">
-                    <span className="text-slate-500 dark:text-slate-400">Logged in as:</span>
-                    <span className="font-bold text-slate-800 dark:text-white capitalize">{role || 'User'}</span>
+                  <div 
+                    className="flex items-center justify-between px-3 py-2 rounded-xl text-xs"
+                    style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-navy)' }}
+                  >
+                    <span>Logged in as:</span>
+                    <span className="font-bold capitalize">{role || 'User'}</span>
                   </div>
                   <button
                     onClick={handleSignOut}
-                    className="w-full py-2.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-bold flex items-center justify-center gap-2"
+                    className="min-h-[44px] w-full py-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 js-focus-ring"
+                    style={{
+                      backgroundColor: 'var(--color-surface)',
+                      borderColor: 'var(--color-border)',
+                      color: 'var(--color-navy)'
+                    }}
                   >
                     <LogOut className="w-4 h-4" />
                     Sign Out
@@ -235,10 +319,11 @@ export default function Navbar() {
                 <Link
                   to="/auth"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="w-full py-3 bg-rose-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 shadow-md shadow-rose-900/20"
+                  className="min-h-[44px] w-full py-3 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 shadow-md js-focus-ring"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
                 >
                   <LogIn className="w-4 h-4" />
-                  <span>Login / Signup</span>
+                  <span>Login / Register</span>
                 </Link>
               )}
             </div>

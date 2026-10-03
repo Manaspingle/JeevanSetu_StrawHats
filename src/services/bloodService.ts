@@ -387,7 +387,7 @@ class BloodService {
     return success;
   }
 
-  public async discardUnit(unitId: string, reason: string, actorId: string): Promise<boolean> {
+  public async discardUnit(unitId: string, reason: string, actorId: string = 'blood_bank'): Promise<boolean> {
     const success = await this.coordinator.setUnitQuarantineStatus(unitId, 'discarded', reason, actorId);
     if (success) {
       this.state.units = this.coordinator.getUnits();
@@ -482,6 +482,98 @@ class BloodService {
       this.saveState(this.state);
     }
     return { expiredCount: expiredUnitsCount, alerts };
+  }
+
+  // Registration & Real Profile Synchronization
+  public addOrUpdateDonor(donor: Partial<DonorEntity> & { id: string; name: string; bloodGroup: BloodGroup; phone: string; city: 'Mumbai' | 'Pune' | 'Nagpur' }) {
+    const existingIdx = this.state.donors.findIndex(d => d.id === donor.id || d.phone === donor.phone);
+    const donorObj: DonorEntity = {
+      id: donor.id,
+      name: donor.name,
+      bloodGroup: donor.bloodGroup,
+      city: donor.city,
+      location: donor.location || { lat: 21.145, lng: 79.088 },
+      phone: donor.phone,
+      gender: donor.gender || 'Male',
+      available: donor.available ?? true,
+      verified: donor.verified ?? true,
+      lastDonationAt: donor.lastDonationAt || new Date(Date.now() - 95 * 24 * 3600 * 1000).toISOString(),
+      totalDonations: donor.totalDonations ?? 1,
+      reputation: donor.reputation ?? 95
+    };
+    if (existingIdx >= 0) {
+      this.state.donors[existingIdx] = { ...this.state.donors[existingIdx], ...donorObj };
+    } else {
+      this.state.donors.unshift(donorObj);
+    }
+    this.saveState(this.state);
+    return donorObj;
+  }
+
+  public addOrUpdateHospital(hospital: Partial<HospitalEntity> & { id: string; name: string; city: 'Mumbai' | 'Pune' | 'Nagpur'; emergencyContact: string }) {
+    const existingIdx = this.state.hospitals.findIndex(h => h.id === hospital.id || h.name.toLowerCase() === hospital.name.toLowerCase());
+    const hospObj: HospitalEntity = {
+      id: hospital.id,
+      name: hospital.name,
+      city: hospital.city,
+      location: hospital.location || { lat: 21.140, lng: 79.080 },
+      licenseNumber: hospital.licenseNumber || 'HOSP-MAH-2026',
+      emergencyContact: hospital.emergencyContact,
+      verified: hospital.verified ?? true,
+      reputation: hospital.reputation ?? 95
+    };
+    if (existingIdx >= 0) {
+      this.state.hospitals[existingIdx] = { ...this.state.hospitals[existingIdx], ...hospObj };
+    } else {
+      this.state.hospitals.unshift(hospObj);
+    }
+    this.saveState(this.state);
+    return hospObj;
+  }
+
+  public addOrUpdateBank(bank: Partial<BloodBank> & { id: string; name: string; city: 'Mumbai' | 'Pune' | 'Nagpur'; phone: string }) {
+    const existingIdx = this.state.banks.findIndex(b => b.id === bank.id || b.name.toLowerCase() === bank.name.toLowerCase());
+    const bankObj: BloodBank = {
+      id: bank.id,
+      name: bank.name,
+      city: bank.city,
+      location: bank.location || { lat: 21.146, lng: 79.088 },
+      address: bank.address || `${bank.city} Regional Center`,
+      phone: bank.phone,
+      verified: bank.verified ?? true,
+      licenseNumber: bank.licenseNumber || 'BB-MH-2026',
+      rating: bank.rating ?? 4.8,
+      responseRate: bank.responseRate ?? 0.95,
+      createdAt: bank.createdAt || new Date().toISOString()
+    };
+    if (existingIdx >= 0) {
+      this.state.banks[existingIdx] = { ...this.state.banks[existingIdx], ...bankObj };
+    } else {
+      this.state.banks.unshift(bankObj);
+      if (!this.state.stockSummaries[bank.id]) {
+        this.state.stockSummaries[bank.id] = {
+          bankId: bank.id,
+          counts: { 'O-': 4, 'O+': 8, 'A-': 5, 'A+': 10, 'B-': 4, 'B+': 12, 'AB-': 3, 'AB+': 6 },
+          lastUpdated: new Date().toISOString()
+        };
+      }
+    }
+    this.saveState(this.state);
+    return bankObj;
+  }
+
+  public updateRequestStatus(requestId: string, status: 'allocated' | 'dispatched' | 'completed' | 'cancelled', note?: string) {
+    const req = this.state.requests.find(r => r.id === requestId);
+    if (!req) return;
+    req.status = status;
+    req.updatedAt = new Date().toISOString();
+    req.timeline.push({
+      status,
+      timestamp: new Date().toISOString(),
+      actor: 'system',
+      note: note || `Status transitioned to ${status}`
+    });
+    this.saveState(this.state);
   }
 
   public getNearbyDonorsForRequest(req: EmergencyRequest): Array<DonorEntity & { distanceKm: number; etaMinutes: number; maskedPhone: string }> {

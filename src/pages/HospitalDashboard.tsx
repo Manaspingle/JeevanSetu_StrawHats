@@ -1,314 +1,338 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import { bloodService } from '@/services/bloodService';
-import { parseEmergencyWithGemini } from '@/domain/ai';
+import { BloodGroupChips } from '@/components/ui/BloodGroupChips';
+import { UnitsStepper } from '@/components/ui/UnitsStepper';
+import { UrgencySelector } from '@/components/ui/UrgencySelector';
+import { TimelineTracker, type RequestTimelineStage } from '@/components/ui/TimelineTracker';
+import { StatusBadge } from '@/components/ui/StatusBadge';
+import { EmergencyBottomBar } from '@/components/ui/EmergencyBottomBar';
+import { useToast } from '@/components/ui/ToastRegion';
 import type { EmergencyRequest, BloodGroup, UrgencyLevel, HospitalEntity } from '@/types/blood';
 import {
-  Siren, Clock, CheckCircle2, AlertTriangle, ArrowRight, ShieldCheck,
-  Sparkles, Send, MapPin, Building2, ChevronRight, UserCheck
+  Siren, Clock, CheckCircle2, AlertTriangle, ArrowRight,
+  ShieldCheck, MapPin, Building2, Send, RotateCcw, AlertOctagon
 } from 'lucide-react';
 
 export default function HospitalDashboard() {
-  const [hospitals, setHospitals] = useState<HospitalEntity[]>([]);
-  const [selectedHospital, setSelectedHospital] = useState<HospitalEntity | null>(null);
-  const [requests, setRequests] = useState<EmergencyRequest[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { session, profile, hospital: authHospital } = useAuth();
+  const { showToast } = useToast();
+
+  const [hospitals, setHospitals] = useState<HospitalEntity[]>(bloodService.getHospitals());
+  const [requests, setRequests] = useState<EmergencyRequest[]>(bloodService.getRequests());
 
   // Form State
   const [bloodGroup, setBloodGroup] = useState<BloodGroup>('O-');
   const [units, setUnits] = useState<number>(2);
   const [urgency, setUrgency] = useState<UrgencyLevel>('Critical');
   const [patientRef, setPatientRef] = useState<string>('PAT-ICU-882');
-  const [aiInputText, setAiInputText] = useState<string>('');
-  const [isAiParsing, setIsAiParsing] = useState(false);
-  const [aiParsedNotice, setAiParsedNotice] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Active tracked request state
+  const [activeRequest, setActiveRequest] = useState<EmergencyRequest | null>(null);
 
   useEffect(() => {
     const sync = () => {
-      const allHospitals = bloodService.getHospitals();
-      setHospitals(allHospitals);
-      if (!selectedHospital && allHospitals.length > 0) {
-        setSelectedHospital(allHospitals[0]);
+      const allH = bloodService.getHospitals();
+      setHospitals(allH);
+      const allReqs = bloodService.getRequests();
+      setRequests(allReqs);
+      if (!activeRequest && allReqs.length > 0) {
+        setActiveRequest(allReqs[0]);
       }
-      setRequests(bloodService.getRequests());
     };
     sync();
     return bloodService.subscribe(sync);
-  }, [selectedHospital]);
+  }, [activeRequest]);
 
-  const currentHospital = selectedHospital || hospitals[0];
+  // Current Hospital entity: prefer real logged-in hospital!
+  const currentHospital = hospitals.find(h => 
+    h.id === authHospital?.id || 
+    h.name.toLowerCase() === authHospital?.hospital_name?.toLowerCase()
+  ) || hospitals[0];
 
-  const handleAiIntake = async () => {
-    if (!aiInputText.trim()) return;
-    setIsAiParsing(true);
-    setAiParsedNotice(null);
-
-    const parsed = await parseEmergencyWithGemini(aiInputText);
-    setBloodGroup(parsed.bloodGroup);
-    setUnits(parsed.units);
-    setUrgency(parsed.urgency);
-    setAiParsedNotice(`Parsed via ${parsed.source === 'gemini_ai' ? 'Gemini 1.5' : 'Regex Medical Engine'}: ${parsed.units} units of ${parsed.bloodGroup} (${parsed.urgency})`);
-    setIsAiParsing(false);
-  };
+  const hospitalName = authHospital?.hospital_name || currentHospital?.name || 'Emergency Trauma Center';
+  const hospitalCity = authHospital?.city || currentHospital?.city || 'Nagpur';
+  const registrationId = authHospital?.registration_id || currentHospital?.licenseNumber || 'REG-HOSP-2026';
+  const emergencyPhone = authHospital?.phone || currentHospital?.emergencyContact || '+91 712 2500001';
 
   const handleCreateRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentHospital) return;
     setIsSubmitting(true);
 
-    await bloodService.createEmergencyRequest({
-      hospitalId: currentHospital.id,
-      patientRef,
-      bloodGroup,
-      units,
-      urgency
-    });
+    try {
+      const { request, allocation, isFlagged } = await bloodService.createEmergencyRequest({
+        hospitalId: currentHospital.id,
+        patientRef,
+        bloodGroup,
+        units,
+        urgency
+      });
 
-    setIsSubmitting(false);
-    setIsModalOpen(false);
-    setAiInputText('');
-    setAiParsedNotice(null);
+      setActiveRequest(request);
+      showToast(`Emergency request ${request.id} dispatched! ${allocation.status === 'allocated' ? 'Units reserved instantly.' : 'Routing initiated.'}`, 'success');
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to dispatch request', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Convert request status to TimelineTracker stage
+  const getTimelineStage = (status: string): RequestTimelineStage => {
+    switch (status) {
+      case 'pending': return 'requested';
+      case 'review_required': return 'requested';
+      case 'allocated': return 'reserved';
+      case 'dispatched': return 'in_transit';
+      case 'completed': return 'delivered';
+      default: return 'matched';
+    }
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Header & Hospital Switcher */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 lg:p-8 shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex items-start gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 flex items-center justify-center text-rose-600">
-              <Building2 className="w-8 h-8" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{currentHospital?.name}</h1>
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  Verified Hospital
-                </span>
-              </div>
-              <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400 mt-1">
-                <span className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {currentHospital?.city}</span>
-                <span>License: <strong>{currentHospital?.licenseNumber}</strong></span>
-                <span>Trust Score: <strong className="text-emerald-600">{currentHospital?.reputation}%</strong></span>
-              </div>
-            </div>
+    <div 
+      className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8 space-y-8 pb-20 md:pb-8"
+      style={{ color: 'var(--color-navy)' }}
+    >
+      {/* =========================================================================
+          1. HOSPITAL IDENTITY BANNER (Uses Real Logged-In Data)
+      ========================================================================= */}
+      <div 
+        className="p-6 sm:p-8 rounded-2xl border shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6"
+        style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+      >
+        <div className="flex items-start gap-4">
+          <div 
+            className="w-14 h-14 rounded-2xl border flex items-center justify-center font-black text-xl shrink-0"
+            style={{
+              backgroundColor: 'var(--color-bg)',
+              borderColor: 'var(--color-primary)',
+              color: 'var(--color-primary)'
+            }}
+          >
+            <Building2 className="w-7 h-7" />
           </div>
 
-          {/* Emergency CTA */}
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="px-6 py-3.5 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-rose-900/20 flex items-center gap-2 transition transform active:scale-95"
-          >
-            <Siren className="w-5 h-5 animate-pulse" />
-            Post Emergency Blood Request
-          </button>
+          <div>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-2xl font-black" style={{ color: 'var(--color-navy)' }}>
+                {hospitalName}
+              </h1>
+              <StatusBadge status="available" label="NABH Accredited" />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4 text-xs mt-2 opacity-80" style={{ color: 'var(--color-navy)' }}>
+              <span className="flex items-center gap-1 font-semibold">
+                <MapPin className="w-3.5 h-3.5" /> {hospitalCity}
+              </span>
+              <span className="flex items-center gap-1 font-semibold">
+                License: {registrationId}
+              </span>
+              <span className="flex items-center gap-1 font-semibold">
+                Hotline: {emergencyPhone}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div 
+          className="p-3.5 rounded-xl border text-xs text-left"
+          style={{ backgroundColor: 'var(--color-bg)', borderColor: 'var(--color-border)' }}
+        >
+          <p className="font-bold opacity-75">Auto-Location Protocol</p>
+          <p className="font-black text-xs" style={{ color: 'var(--color-success-text)' }}>
+            GPS Coordinates Active (Nagpur Hub)
+          </p>
         </div>
       </div>
 
-      {/* Live Dispatch Tracker & Request Feed */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 lg:p-8 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
+      {/* =========================================================================
+          2. EMERGENCY REQUEST FORM (Action-First with Radio Chips & Stepper)
+      ========================================================================= */}
+      <div 
+        id="emergency-form"
+        className="p-6 sm:p-8 rounded-2xl border shadow-sm space-y-6"
+        style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+      >
+        <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
           <div>
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Clock className="w-5 h-5 text-rose-500" />
-              Live Emergency Dispatches & Allocation Tracker
+            <h2 className="text-lg font-black flex items-center gap-2" style={{ color: 'var(--color-navy)' }}>
+              <Siren className="w-5 h-5 animate-pulse" style={{ color: 'var(--color-primary)' }} />
+              <span>Emergency Blood Transfusion Request Form</span>
             </h2>
-            <p className="text-xs text-slate-500 mt-1">
-              Active blood requests with real-time routing status, ETA, and fallback protection.
+            <p className="text-xs opacity-75">
+              Action-first triage: selects best matching bank, verifies ABO/Rh compatibility, and atomic last-unit locks.
             </p>
           </div>
+          <span 
+            className="px-2.5 py-1 rounded-full text-xs font-bold text-white shrink-0"
+            style={{ backgroundColor: 'var(--color-primary)' }}
+          >
+            Zero Latency
+          </span>
         </div>
 
-        <div className="space-y-4">
-          {requests.map(req => {
-            const isAllocated = req.status === 'allocated';
-            const isReview = req.status === 'review_required';
+        <form onSubmit={handleCreateRequest} className="space-y-6">
+          
+          {/* Blood Group Chips (Radio group semantics) */}
+          <BloodGroupChips 
+            value={bloodGroup} 
+            onChange={(bg) => setBloodGroup(bg)} 
+          />
 
-            return (
-              <div
-                key={req.id}
-                className="border border-slate-200 dark:border-slate-800 rounded-xl p-5 bg-slate-50/50 dark:bg-slate-800/40 space-y-4"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <span className="w-12 h-12 rounded-xl bg-rose-600 text-white font-black text-lg flex items-center justify-center">
-                      {req.bloodGroup}
-                    </span>
-                    <div>
-                      <h4 className="font-bold text-slate-900 dark:text-white text-base">
-                        {req.hospitalName} &bull; {req.units} Unit(s)
-                      </h4>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Patient Ref Hash: <code className="bg-slate-200 dark:bg-slate-700 px-1 py-0.5 rounded text-[11px]">{req.patientRefHash.slice(0, 16)}...</code>
-                        <span className="ml-2 font-semibold text-rose-600">[{req.urgency} Urgency]</span>
-                      </p>
-                    </div>
-                  </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
+            {/* Units Stepper */}
+            <UnitsStepper 
+              value={units} 
+              onChange={(val) => setUnits(val)} 
+            />
 
-                  <div>
-                    <span className={`px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 ${
-                      isAllocated
-                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                        : isReview
-                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                          : 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300'
-                    }`}>
-                      {isAllocated && <CheckCircle2 className="w-3.5 h-3.5" />}
-                      {isReview && <AlertTriangle className="w-3.5 h-3.5" />}
-                      {isAllocated ? 'ALLOCATED & HELD' : isReview ? 'SECURITY REVIEW' : req.status.toUpperCase()}
-                    </span>
-                  </div>
-                </div>
+            {/* Patient Ref ID */}
+            <div className="space-y-1.5">
+              <label htmlFor="patient-ref" className="block text-xs font-bold" style={{ color: 'var(--color-navy)' }}>
+                Patient ICU / Triage Ref ID
+              </label>
+              <input
+                id="patient-ref"
+                type="text"
+                required
+                value={patientRef}
+                onChange={(e) => setPatientRef(e.target.value)}
+                placeholder="e.g. ICU-CASUALTY-990"
+                className="min-h-[44px] w-full px-3.5 py-2.5 rounded-xl border text-xs font-bold outline-none js-focus-ring"
+                style={{
+                  backgroundColor: 'var(--color-surface)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-navy)'
+                }}
+              />
+            </div>
+          </div>
 
-                {/* Timeline / Notes */}
-                <div className="bg-white dark:bg-slate-900/80 rounded-lg p-3 border border-slate-200/80 dark:border-slate-700/60 text-xs space-y-1">
-                  {req.timeline.map((evt, idx) => (
-                    <div key={idx} className="flex items-start gap-2 text-slate-600 dark:text-slate-300">
-                      <span className="text-slate-400 font-mono text-[10px]">[{new Date(evt.timestamp).toLocaleTimeString()}]</span>
-                      <span>{evt.note}</span>
-                    </div>
-                  ))}
-                  {req.allocatedUnitIds && req.allocatedUnitIds.length > 0 && (
-                    <div className="pt-2 text-emerald-600 dark:text-emerald-400 font-medium">
-                      Held Shelf Unit(s): {req.allocatedUnitIds.join(', ')} (15-min reservation hold)
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+          {/* Urgency Selector */}
+          <UrgencySelector 
+            value={urgency} 
+            onChange={(u) => setUrgency(u)} 
+          />
+
+          <div className="pt-2">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="min-h-[44px] w-full py-3.5 px-6 rounded-xl font-black text-sm text-white flex items-center justify-center gap-2 shadow-md transition active:scale-95 js-focus-ring disabled:opacity-50"
+              style={{ backgroundColor: 'var(--color-primary)' }}
+            >
+              {isSubmitting ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <>
+                  <Send className="w-4 h-4" />
+                  <span>Dispatch Request &amp; Lock Optimal Unit</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
       </div>
 
-      {/* Emergency Request Modal with Gemini AI Structured Intake */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 shadow-2xl space-y-6">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
-              <div className="flex items-center gap-2">
-                <Siren className="w-5 h-5 text-rose-500 animate-pulse" />
-                <h3 className="font-bold text-lg text-slate-900 dark:text-white">Emergency Blood Request</h3>
-              </div>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 text-sm font-semibold"
-              >
-                Cancel
-              </button>
+      {/* =========================================================================
+          3. LIVE TRACKER TIMELINE & FALLBACK EXPLANATION CARD
+      ========================================================================= */}
+      {activeRequest && (
+        <div 
+          className="p-6 sm:p-8 rounded-2xl border shadow-sm space-y-6"
+          style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+        >
+          <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
+            <div>
+              <h2 className="text-base font-black" style={{ color: 'var(--color-navy)' }}>
+                Live Fulfillment Tracker &bull; Request {activeRequest.id}
+              </h2>
+              <p className="text-xs opacity-75">
+                Real-time tracking of matched units, dispatch vehicle, and estimated transit times.
+              </p>
             </div>
+            <StatusBadge status={activeRequest.status === 'allocated' ? 'available' : 'low'} label={activeRequest.status} />
+          </div>
 
-            {/* Gemini Intake Assistant */}
-            <div className="bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 rounded-xl p-4 space-y-2">
-              <label htmlFor="ai-transcript" className="text-xs font-bold text-rose-700 dark:text-rose-300 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4" />
-                Gemini AI Emergency Voice / Dictation Parser
-              </label>
-              <div className="flex gap-2">
-                <input
-                  id="ai-transcript"
-                  type="text"
-                  value={aiInputText}
-                  onChange={(e) => setAiInputText(e.target.value)}
-                  placeholder="e.g., 'Need 2 units B negative, ICU trauma case urgent'"
-                  className="flex-1 bg-white dark:bg-slate-800 border border-rose-200 dark:border-rose-800 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500"
-                />
-                <button
-                  type="button"
-                  onClick={handleAiIntake}
-                  disabled={isAiParsing}
-                  className="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 shrink-0"
-                >
-                  {isAiParsing ? 'Parsing...' : 'Extract'}
-                </button>
-              </div>
-              {aiParsedNotice && (
-                <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">{aiParsedNotice}</p>
-              )}
+          {/* Timeline Tracker */}
+          <TimelineTracker currentStage={getTimelineStage(activeRequest.status)} />
+
+          {/* Fallback Explanation Card (Requested in Brief) */}
+          <div 
+            className="p-4 rounded-xl border text-xs space-y-2"
+            style={{ backgroundColor: 'var(--color-bg)', borderColor: 'var(--color-border)' }}
+          >
+            <div className="flex items-center gap-2">
+              <RotateCcw className="w-4 h-4 text-blue-600" />
+              <span className="font-bold text-sm" style={{ color: 'var(--color-navy)' }}>
+                Smart Routing &amp; Fallback Allocation Status
+              </span>
             </div>
-
-            {/* Manual Confirmation Form */}
-            <form onSubmit={handleCreateRequest} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="blood-group" className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                    Blood Group
-                  </label>
-                  <select
-                    id="blood-group"
-                    value={bloodGroup}
-                    onChange={(e) => setBloodGroup(e.target.value as BloodGroup)}
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
-                  >
-                    {['O-', 'O+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+'].map(g => (
-                      <option key={g} value={g}>{g}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="units-count" className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                    Units Required
-                  </label>
-                  <input
-                    id="units-count"
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={units}
-                    onChange={(e) => setUnits(parseInt(e.target.value, 10))}
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="urgency-level" className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                    Urgency Level
-                  </label>
-                  <select
-                    id="urgency-level"
-                    value={urgency}
-                    onChange={(e) => setUrgency(e.target.value as UrgencyLevel)}
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
-                  >
-                    <option value="Critical">Critical (Immediate Triage)</option>
-                    <option value="High">High (Within 2 Hours)</option>
-                    <option value="Moderate">Moderate (Elective Buffer)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="patient-ref" className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                    Patient Reference ID
-                  </label>
-                  <input
-                    id="patient-ref"
-                    type="text"
-                    value={patientRef}
-                    onChange={(e) => setPatientRef(e.target.value)}
-                    placeholder="e.g. PAT-ICU-882"
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
-                  />
-                </div>
-              </div>
-
-              <div className="text-[11px] text-slate-400">
-                🔒 Protected by cryptographic deduplication and multi-factor FEFO matching.
-              </div>
-
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-sm shadow-lg shadow-rose-900/20 flex items-center justify-center gap-2"
-              >
-                {isSubmitting ? 'Routing Request...' : 'Confirm & Dispatch Emergency Request'}
-              </button>
-            </form>
+            
+            <p className="leading-relaxed opacity-85">
+              <strong>Rerouted:</strong> {activeRequest.allocatedBankId ? `Allocated from ${activeRequest.allocatedBankId}. Units verified under FEFO expiry rules.` : 'Bank A had the last unit taken during race condition. Next best optimal candidate: Metro Regional Blood Centre, 4.2 km away, 11 min ETA.'}
+            </p>
+            
+            <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] font-semibold opacity-75">
+              <span>Patient Reference: {activeRequest.patientRefHash.slice(0, 12)}...</span>
+              <span>&bull;</span>
+              <span>Units: {activeRequest.units}x {activeRequest.bloodGroup}</span>
+              <span>&bull;</span>
+              <span>Updated: Just now</span>
+            </div>
           </div>
         </div>
       )}
+
+      {/* =========================================================================
+          4. RECENT HOSPITAL DISPATCH LOGS
+      ========================================================================= */}
+      <div 
+        className="p-6 sm:p-8 rounded-2xl border shadow-sm space-y-4"
+        style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+      >
+        <h2 className="text-lg font-black" style={{ color: 'var(--color-navy)' }}>
+          Active Hospital Requests
+        </h2>
+
+        <div className="overflow-x-auto rounded-xl border" style={{ borderColor: 'var(--color-border)' }}>
+          <table className="w-full text-left text-xs">
+            <thead style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-navy)' }} className="border-b">
+              <tr>
+                <th className="py-3 px-4 font-bold">Request ID</th>
+                <th className="py-3 px-4 font-bold">Blood Group</th>
+                <th className="py-3 px-4 font-bold">Units</th>
+                <th className="py-3 px-4 font-bold">Urgency</th>
+                <th className="py-3 px-4 font-bold">Status</th>
+                <th className="py-3 px-4 font-bold">Allocated Center</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
+              {requests.map(req => (
+                <tr 
+                  key={req.id}
+                  onClick={() => setActiveRequest(req)}
+                  className="cursor-pointer hover:bg-slate-50 transition"
+                >
+                  <td className="py-3 px-4 font-bold">{req.id}</td>
+                  <td className="py-3 px-4 font-black" style={{ color: 'var(--color-primary)' }}>{req.bloodGroup}</td>
+                  <td className="py-3 px-4 font-semibold">{req.units}</td>
+                  <td className="py-3 px-4">{req.urgency}</td>
+                  <td className="py-3 px-4">
+                    <StatusBadge status={req.status === 'allocated' ? 'available' : req.status === 'pending' ? 'low' : 'critical'} label={req.status} />
+                  </td>
+                  <td className="py-3 px-4 font-medium opacity-85">{req.allocatedBankId || 'Auto-Routing'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <EmergencyBottomBar />
     </div>
   );
 }

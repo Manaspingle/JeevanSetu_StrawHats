@@ -1,15 +1,32 @@
+@import './styles/tokens.css';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@layer utilities {
-  .emergency-glow {
-    box-shadow: 0 0 25px rgba(239, 68, 68, 0.65), 0 0 50px rgba(244, 133, 82, 0.4);
+@layer base {
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-navy);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.5;
+    margin: 0;
+    padding: 0;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
-  .teal-glow {
-    box-shadow: 0 10px 30px -5px rgba(0, 96, 95, 0.3);
-  }
-  .orange-glow {
-    box-shadow: 0 10px 30px -5px rgba(244, 133, 82, 0.3);
+}
+
+/* Accessible focus ring */
+.js-focus-ring:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

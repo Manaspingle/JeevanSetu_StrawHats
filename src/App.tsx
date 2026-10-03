@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { ThemeProvider } from '@/context/ThemeContext';
+import { ToastProvider } from '@/components/ui/ToastRegion';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import LandingPage from '@/pages/LandingPage';
@@ -9,6 +10,7 @@ import AuthPage from '@/pages/AuthPage';
 import DonorDashboard from '@/pages/DonorDashboard';
 import HospitalDashboard from '@/pages/HospitalDashboard';
 import BankDashboard from '@/pages/BankDashboard';
+import AdminDashboard from '@/pages/AdminDashboard';
 
 function AppRoutes() {
   return (
@@ -17,7 +19,7 @@ function AppRoutes() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/auth" element={<AuthPage />} />
 
-      {/* Protected Dashboards (Accessible ONLY after Login/Signup) */}
+      {/* The Four Core Role Dashboards (Protected after Login/Signup) */}
       <Route element={<Layout />}>
         <Route
           path="/donor"
@@ -43,6 +45,14 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute requiredRole="hospital">
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Compatibility Redirects */}
         <Route path="/dashboard" element={<Navigate to="/donor" replace />} />
@@ -51,7 +61,6 @@ function AppRoutes() {
         <Route path="/donor-directory" element={<Navigate to="/donor" replace />} />
         <Route path="/matching-engine" element={<Navigate to="/hospital" replace />} />
         <Route path="/create-request" element={<Navigate to="/hospital" replace />} />
-        <Route path="/admin" element={<Navigate to="/" replace />} />
       </Route>
 
       {/* Catch-all redirect */}
@@ -65,9 +74,11 @@ export default function App() {
     <ThemeProvider>
       <LanguageProvider>
         <AuthProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
+          <ToastProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </ToastProvider>
         </AuthProvider>
       </LanguageProvider>
     </ThemeProvider>

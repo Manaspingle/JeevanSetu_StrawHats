@@ -10,6 +10,7 @@ import { collection, query, where, getDocs, setDoc, doc } from 'firebase/firesto
 import { auth, db } from '@/lib/firebase';
 import { getDonors, getHospitals, saveCustomHospital } from '@/lib/firebaseDb';
 import { SEED_BANKS, SEED_HOSPITALS, SEED_DONORS } from '@/lib/seedData';
+import { bloodService } from '@/services/bloodService';
 import type { Profile, Donor, Hospital, BloodBankProfile, UserRole } from '@/types';
 
 interface AuthContextType {
@@ -230,6 +231,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.warn('Firestore signup save fallback:', err);
         }
 
+        // Sync directly into bloodService state
+        bloodService.addOrUpdateDonor({
+          id: newDonor.id,
+          name: newDonor.full_name,
+          bloodGroup: (newDonor.blood_group as any) || 'O+',
+          city: (newDonor.city as any) || 'Nagpur',
+          phone: newDonor.phone,
+          gender: (data.gender as any) || 'Male',
+          available: true,
+          verified: true
+        });
+
         localStorage.setItem(JEEVANSETU_SESSION_KEY, JSON.stringify({
           user: { uid, email },
           profile: newProfile,
@@ -255,6 +268,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (err) {
           console.warn('Firestore signup save fallback:', err);
         }
+
+        // Sync directly into bloodService state
+        bloodService.addOrUpdateHospital({
+          id: newHospital.id,
+          name: newHospital.hospital_name,
+          city: (newHospital.city as any) || 'Nagpur',
+          emergencyContact: newHospital.phone,
+          licenseNumber: newHospital.registration_id,
+          verified: true
+        });
 
         localStorage.setItem(JEEVANSETU_SESSION_KEY, JSON.stringify({
           user: { uid, email },
@@ -285,6 +308,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch (err) {
           console.warn('Firestore signup save fallback:', err);
         }
+
+        // Sync directly into bloodService state
+        bloodService.addOrUpdateBank({
+          id: newBank.id,
+          name: newBank.name,
+          city: (newBank.city as any) || 'Nagpur',
+          phone: newBank.phone,
+          licenseNumber: newBank.license_number,
+          verified: true
+        });
 
         localStorage.setItem(JEEVANSETU_SESSION_KEY, JSON.stringify({
           user: { uid, email },

@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 320" fill="none">
+  <defs>
+    <linearGradient id="commGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#F5F9FC"/>
+    </linearGradient>
+  </defs>
+  <rect width="1000" height="320" rx="20" fill="url(#commGrad)" stroke="#D8DFE6" stroke-width="2"/>
+
+  <!-- Left: Blood drop symbol with human figure inside -->
+  <g transform="translate(180, 50)">
+    <path d="M50 10 C50 10 90 70 90 110 C90 140 68 160 50 160 C32 160 10 140 10 110 C10 70 50 10 50 10 Z" fill="#C8102E"/>
+    <circle cx="50" cy="90" r="14" fill="#FFFFFF"/>
+    <path d="M30 140 C30 115 70 115 70 140" fill="#FFFFFF"/>
+  </g>
+
+  <!-- Center Text -->
+  <text x="540" y="110" fill="#12263F" font-family="sans-serif" font-size="42" font-weight="900" text-anchor="middle">National Voluntary Blood Day</text>
+  <text x="540" y="155" fill="#C8102E" font-family="sans-serif" font-size="20" font-weight="bold" text-anchor="middle">One Drop of Humanity &bull; Give Blood &bull; Save Lives</text>
+  <text x="540" y="195" fill="#137A52" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle">100% Voluntary &bull; Verified Cold-Chain Safety &bull; Instant Hospital Dispatch</text>
+
+  <!-- Bottom Human Silhouette Wave -->
+  <g fill="#12263F" opacity="0.85" transform="translate(150, 240)">
+    <circle cx="50" cy="10" r="8"/><path d="M42 35 C42 22 58 22 58 35"/>
+    <circle cx="100" cy="6" r="9"/><path d="M90 35 C90 20 110 20 110 35"/>
+    <circle cx="150" cy="12" r="7"/><path d="M143 35 C143 23 157 23 157 35"/>
+    <circle cx="200" cy="4" r="10"/><path d="M188 35 C188 18 212 18 212 35"/>
+    <circle cx="250" cy="10" r="8"/><path d="M242 35 C242 22 258 22 258 35"/>
+    <circle cx="300" cy="6" r="9"/><path d="M290 35 C290 20 310 20 310 35"/>
+    <circle cx="350" cy="10" r="8"/><path d="M342 35 C342 22 358 22 358 35"/>
+    <circle cx="400" cy="4" r="10"/><path d="M388 35 C388 18 412 18 412 35"/>
+    <circle cx="450" cy="10" r="8"/><path d="M442 35 C442 22 458 22 458 35"/>
+    <circle cx="500" cy="6" r="9"/><path d="M490 35 C490 20 510 20 510 35"/>
+    <circle cx="550" cy="10" r="8"/><path d="M542 35 C542 22 558 22 558 35"/>
+    <circle cx="600" cy="4" r="10"/><path d="M588 35 C588 18 612 18 612 35"/>
+    <circle cx="650" cy="10" r="8"/><path d="M642 35 C642 22 658 22 658 35"/>
+  </g>
+</svg>

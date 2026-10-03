@@ -1,340 +1,487 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import { bloodService } from '@/services/bloodService';
-import type { BloodBank, BloodUnit, StockSummary, BloodGroup, ExpiryAlert } from '@/types/blood';
+import { StatusBadge } from '@/components/ui/StatusBadge';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { EmergencyBottomBar } from '@/components/ui/EmergencyBottomBar';
+import { useToast } from '@/components/ui/ToastRegion';
+import type { BloodBank, BloodUnit, StockSummary, BloodGroup, ExpiryAlert, EmergencyRequest } from '@/types/blood';
 import {
   Building2, ShieldCheck, AlertCircle, AlertTriangle, Clock, Plus,
-  Trash2, ShieldAlert, CheckCircle2, MapPin, Phone
+  Trash2, ShieldAlert, CheckCircle2, MapPin, Phone, Check, X,
+  FileText, Shield
 } from 'lucide-react';
 
+const ALL_BLOOD_GROUPS: BloodGroup[] = ['O-', 'O+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+'];
+
 export default function BankDashboard() {
-  const [banks, setBanks] = useState<BloodBank[]>([]);
-  const [selectedBank, setSelectedBank] = useState<BloodBank | null>(null);
-  const [stockSummaries, setStockSummaries] = useState<Record<string, StockSummary>>({});
+  const { session, profile, bank: authBank } = useAuth();
+  const { showToast } = useToast();
+
+  const [banks, setBanks] = useState<BloodBank[]>(bloodService.getBanks());
+  const [stockSummaries, setStockSummaries] = useState<Record<string, StockSummary>>(bloodService.getStockSummaries());
   const [units, setUnits] = useState<BloodUnit[]>([]);
   const [alerts, setAlerts] = useState<ExpiryAlert[]>([]);
+  const [requests, setRequests] = useState<EmergencyRequest[]>(bloodService.getRequests());
 
-  // Intake Form
+  // Unit Intake Form State
   const [intakeGroup, setIntakeGroup] = useState<BloodGroup>('O-');
   const [intakeComponent, setIntakeComponent] = useState<'RBC' | 'whole'>('RBC');
   const [intakeExpiryDays, setIntakeExpiryDays] = useState<number>(35);
   const [shelfLocation, setShelfLocation] = useState<string>('Vault-A-01');
 
-  // Quarantine Modal
+  // Quarantine / Discard Modal State
   const [quarantineUnitId, setQuarantineUnitId] = useState<string | null>(null);
-  const [quarantineReason, setQuarantineReason] = useState<string>('Temperature excursion above 6°C during storage inspection');
+  const [quarantineReason, setQuarantineReason] = useState<string>('Cold-chain deviation during storage check');
+  const [isQuarantineOpen, setIsQuarantineOpen] = useState(false);
 
   useEffect(() => {
     const sync = () => {
       const allBanks = bloodService.getBanks();
       setBanks(allBanks);
-      if (!selectedBank && allBanks.length > 0) {
-        setSelectedBank(allBanks[0]);
-      }
       setStockSummaries(bloodService.getStockSummaries());
-      if (selectedBank) {
-        setUnits(bloodService.getUnits(selectedBank.id));
-      } else if (allBanks.length > 0) {
-        setUnits(bloodService.getUnits(allBanks[0].id));
-      }
+      setRequests(bloodService.getRequests());
       const { alerts: liveAlerts } = bloodService.runExpiryCheck();
       setAlerts(liveAlerts);
     };
     sync();
     return bloodService.subscribe(sync);
-  }, [selectedBank]);
+  }, []);
 
-  const bank = selectedBank || banks[0];
-  const currentStock = bank ? stockSummaries[bank.id]?.counts : null;
+  // Determine active bank: prefer real logged-in blood bank!
+  const currentBank = banks.find(b => 
+    b.id === authBank?.id || 
+    b.name.toLowerCase() === authBank?.name?.toLowerCase()
+  ) || banks[0];
 
+  const bankName = authBank?.name || currentBank?.name || 'Regional Certified Blood Center';
+  const licenseNumber = authBank?.license_number || currentBank?.licenseNumber || 'BB-MH-2026';
+  const bankPhone = authBank?.phone || currentBank?.phone || '+91 712 2548901';
+  const bankCity = authBank?.city || currentBank?.city || 'Nagpur';
+
+  useEffect(() => {
+    if (currentBank) {
+      setUnits(bloodService.getUnits(currentBank.id));
+    }
+  }, [currentBank]);
+
+  const currentStock = currentBank ? stockSummaries[currentBank.id]?.counts : null;
+
+  // Handle unit intake
   const handleIntake = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!bank) return;
+    if (!currentBank) return;
+
     bloodService.intakeBloodUnit({
-      bankId: bank.id,
+      bankId: currentBank.id,
       bloodGroup: intakeGroup,
       component: intakeComponent,
       expiresInDays: intakeExpiryDays,
       shelfLocation
     });
-    setUnits(bloodService.getUnits(bank.id));
+
+    setUnits(bloodService.getUnits(currentBank.id));
     setStockSummaries(bloodService.getStockSummaries());
+    showToast(`Intake successful: 1 unit of ${intakeGroup} added to ${shelfLocation}.`, 'success');
   };
 
-  const handleQuarantine = async () => {
-    if (!quarantineUnitId || !bank) return;
-    await bloodService.quarantineUnit(quarantineUnitId, quarantineReason, bank.id);
+  // Handle quarantine / discard confirmation
+  const handleConfirmQuarantine = () => {
+    if (!quarantineUnitId) return;
+    bloodService.discardUnit(quarantineUnitId, quarantineReason);
+    if (currentBank) {
+      setUnits(bloodService.getUnits(currentBank.id));
+      setStockSummaries(bloodService.getStockSummaries());
+    }
+    showToast(`Unit ${quarantineUnitId} quarantined and logged to audit ledger.`, 'error');
     setQuarantineUnitId(null);
-    setUnits(bloodService.getUnits(bank.id));
-    setStockSummaries(bloodService.getStockSummaries());
   };
 
-  const bloodGroups: BloodGroup[] = ['O-', 'O+', 'A-', 'A+', 'B-', 'B+', 'AB-', 'AB+'];
+  // Handle request status update
+  const handleRequestAction = (reqId: string, action: 'accept' | 'decline') => {
+    if (action === 'accept') {
+      bloodService.updateRequestStatus(reqId, 'dispatched', 'Accepted by Blood Bank; dispatched via emergency courier.');
+      showToast(`Request ${reqId} accepted and dispatched!`, 'success');
+    } else {
+      bloodService.updateRequestStatus(reqId, 'cancelled', 'Declined by Blood Bank due to component hold.');
+      showToast(`Request ${reqId} declined.`, 'info');
+    }
+  };
+
+  // Expiring units sorted by days left
+  const expiringUnits = units
+    .filter(u => u.status === 'available')
+    .map(u => {
+      const daysLeft = Math.round((new Date(u.expiresAt).getTime() - Date.now()) / (1000 * 3600 * 24));
+      return { ...u, daysLeft };
+    })
+    .sort((a, b) => a.daysLeft - b.daysLeft)
+    .slice(0, 8);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Header & Bank Switcher */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 lg:p-8 shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex items-start gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 flex items-center justify-center text-rose-600 font-bold">
-              <Building2 className="w-8 h-8" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{bank?.name}</h1>
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  Verified Blood Bank
-                </span>
-                {bank?.isRaceTarget && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
-                    Race Demo Target (1 Sole O- Unit)
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400 mt-1">
-                <span className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {bank?.city} &bull; {bank?.address}</span>
-                <span className="flex items-center gap-1"><Phone className="w-4 h-4" /> {bank?.phone}</span>
-                <span>Response Rate: <strong>{Math.round((bank?.responseRate || 0.9) * 100)}%</strong></span>
-              </div>
-            </div>
+    <div 
+      className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8 space-y-8 pb-20 md:pb-8"
+      style={{ color: 'var(--color-navy)' }}
+    >
+      {/* =========================================================================
+          1. BLOOD BANK FACILITY HEADER (Uses Real Logged-In Data)
+      ========================================================================= */}
+      <div 
+        className="p-6 sm:p-8 rounded-2xl border shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6"
+        style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+      >
+        <div className="flex items-start gap-4">
+          <div 
+            className="w-14 h-14 rounded-2xl border flex items-center justify-center font-black text-xl shrink-0"
+            style={{
+              backgroundColor: 'var(--color-bg)',
+              borderColor: 'var(--color-primary)',
+              color: 'var(--color-primary)'
+            }}
+          >
+            <Building2 className="w-7 h-7" />
           </div>
 
-          {/* Quick Bank Selector */}
-          <div className="flex items-center gap-2">
-            <label htmlFor="facility-select" className="text-xs font-semibold text-slate-500">Facility:</label>
-            <select
-              id="facility-select"
-              value={bank?.id}
-              onChange={(e) => {
-                const found = banks.find(b => b.id === e.target.value);
-                if (found) setSelectedBank(found);
-              }}
-              className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white font-medium"
-            >
-              {banks.map(b => (
-                <option key={b.id} value={b.id}>{b.name} ({b.city})</option>
-              ))}
-            </select>
+          <div>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-2xl font-black" style={{ color: 'var(--color-navy)' }}>
+                {bankName}
+              </h1>
+              <StatusBadge status="available" label="Drug Controller Licensed" />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4 text-xs mt-2 opacity-80" style={{ color: 'var(--color-navy)' }}>
+              <span className="flex items-center gap-1 font-semibold">
+                <MapPin className="w-3.5 h-3.5" /> {bankCity}
+              </span>
+              <span className="flex items-center gap-1 font-semibold">
+                License: {licenseNumber}
+              </span>
+              <span className="flex items-center gap-1 font-semibold">
+                <Phone className="w-3.5 h-3.5" /> {bankPhone}
+              </span>
+            </div>
           </div>
+        </div>
+
+        <div 
+          className="p-3.5 rounded-xl border text-xs text-left"
+          style={{ backgroundColor: 'var(--color-bg)', borderColor: 'var(--color-border)' }}
+        >
+          <p className="font-bold opacity-75">Cold-Chain Temperature</p>
+          <p className="font-black text-xs" style={{ color: 'var(--color-success-text)' }}>
+            +4.1°C Optimal &bull; Vault Active
+          </p>
         </div>
       </div>
 
-      {/* Stock Summary Grid by Blood Group with FEFO alerts */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 lg:p-8 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
+      {/* =========================================================================
+          2. STOCK GRID (8 Blood Groups as Cards with Count, Status & Sparkline)
+      ========================================================================= */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Clock className="w-5 h-5 text-rose-500" />
-              Real-Time Shelf Stock by Blood Group (FEFO Tracked)
+            <h2 className="text-lg font-black" style={{ color: 'var(--color-navy)' }}>
+              Live Blood Group Stock Grid (8 Groups)
             </h2>
-            <p className="text-xs text-slate-500 mt-1">
-              Synchronized atomically with unit collection. Zero negative stock guaranteed.
+            <p className="text-xs opacity-75">
+              Atomic unit counts with FEFO dispatch tracking and color + icon status pairings.
             </p>
           </div>
+          <span className="text-xs font-bold opacity-75">
+            Auto-Refreshed
+          </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
-          {bloodGroups.map(bg => {
-            const count = currentStock ? currentStock[bg] || 0 : 0;
-            const isCritical = count === 0;
-            const isLow = count === 1;
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+          {ALL_BLOOD_GROUPS.map((bg) => {
+            const count = currentStock ? (currentStock[bg] ?? 0) : 0;
+            const status = count > 5 ? 'available' : count > 0 ? 'low' : 'critical';
 
             return (
-              <div
+              <div 
                 key={bg}
-                className={`rounded-2xl p-4 border text-center transition ${
-                  isCritical
-                    ? 'bg-rose-50/60 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/40'
-                    : isLow
-                      ? 'bg-amber-50/60 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/40'
-                      : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60'
-                }`}
+                className="p-3.5 rounded-xl border shadow-sm flex flex-col justify-between space-y-3"
+                style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
               >
-                <span className="text-sm font-black text-slate-900 dark:text-white block">{bg}</span>
-                <span className={`text-3xl font-extrabold my-2 block ${
-                  isCritical ? 'text-rose-600' : isLow ? 'text-amber-500' : 'text-emerald-500'
-                }`}>
-                  {count}
-                </span>
-                <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full inline-block ${
-                  isCritical
-                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300'
-                    : isLow
-                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300'
-                      : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300'
-                }`}>
-                  {isCritical ? 'Out of Stock' : isLow ? 'Sole Unit (Alert)' : 'Sufficient'}
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="font-black text-sm" style={{ color: 'var(--color-primary)' }}>{bg}</span>
+                  <StatusBadge status={status} label={count.toString()} />
+                </div>
+
+                <div>
+                  <p className="text-2xl font-black" style={{ color: 'var(--color-navy)' }}>
+                    {count}
+                  </p>
+                  <p className="text-[10px] opacity-70 font-semibold">Available Units</p>
+                </div>
+
+                {/* Expiry mini-bar */}
+                <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${Math.min(100, count * 10)}%`,
+                      backgroundColor: count > 3 ? 'var(--color-success-fill)' : 'var(--color-warning-fill)'
+                    }}
+                  />
+                </div>
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* Unit Level Shelf Management & Intake */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Intake Form */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
-          <h3 className="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2 mb-4">
-            <Plus className="w-5 h-5 text-rose-500" />
-            New Unit Intake
-          </h3>
+      {/* =========================================================================
+          3. EXPIRING-SOON QUEUE & UNIT INTAKE FORM
+      ========================================================================= */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        {/* Expiring-Soon Queue (Col 7) */}
+        <div 
+          className="lg:col-span-7 p-6 rounded-2xl border shadow-sm space-y-4"
+          style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+        >
+          <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
+            <div>
+              <h3 className="text-base font-black flex items-center gap-2" style={{ color: 'var(--color-navy)' }}>
+                <Clock className="w-4 h-4" style={{ color: 'var(--color-warning-text)' }} />
+                <span>Expiring-Soon Queue (FEFO Priority)</span>
+              </h3>
+              <p className="text-xs opacity-75">
+                Units ordered by earliest expiration date.
+              </p>
+            </div>
+            <StatusBadge status="expiring" label={`${expiringUnits.length} Units`} />
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border" style={{ borderColor: 'var(--color-border)' }}>
+            <table className="w-full text-left text-xs">
+              <thead style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-navy)' }} className="border-b">
+                <tr>
+                  <th className="py-2.5 px-3 font-bold">Unit ID</th>
+                  <th className="py-2.5 px-3 font-bold">Group</th>
+                  <th className="py-2.5 px-3 font-bold">Shelf</th>
+                  <th className="py-2.5 px-3 font-bold">Expires In</th>
+                  <th className="py-2.5 px-3 font-bold">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y" style={{ borderColor: 'var(--color-border)' }}>
+                {expiringUnits.map(unit => (
+                  <tr key={unit.id} className="hover:bg-slate-50 transition">
+                    <td className="py-2.5 px-3 font-mono font-bold text-[11px]">{unit.id.slice(0, 14)}</td>
+                    <td className="py-2.5 px-3 font-black" style={{ color: 'var(--color-primary)' }}>{unit.bloodGroup}</td>
+                    <td className="py-2.5 px-3 opacity-80">{unit.shelfLocation || 'Vault-A'}</td>
+                    <td className="py-2.5 px-3">
+                      <span className="font-bold" style={{ color: unit.daysLeft <= 3 ? 'var(--color-danger)' : 'var(--color-warning-text)' }}>
+                        {unit.daysLeft} days
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuarantineUnitId(unit.id);
+                          setIsQuarantineOpen(true);
+                        }}
+                        className="p-1 rounded text-red-600 hover:bg-red-50 transition js-focus-ring"
+                        title="Quarantine or Discard Unit"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Unit Intake Form (Col 5) */}
+        <div 
+          className="lg:col-span-5 p-6 rounded-2xl border shadow-sm space-y-4"
+          style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+        >
+          <div className="pb-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
+            <h3 className="text-base font-black flex items-center gap-2" style={{ color: 'var(--color-navy)' }}>
+              <Plus className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+              <span>Blood Unit Intake</span>
+            </h3>
+            <p className="text-xs opacity-75">
+              Add verified unit to real shelf inventory.
+            </p>
+          </div>
+
           <form onSubmit={handleIntake} className="space-y-4">
             <div>
-              <label htmlFor="intake-blood-group" className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Blood Group</label>
+              <label className="block text-xs font-bold mb-1" style={{ color: 'var(--color-navy)' }}>
+                Blood Group
+              </label>
               <select
-                id="intake-blood-group"
                 value={intakeGroup}
                 onChange={(e) => setIntakeGroup(e.target.value as BloodGroup)}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
+                className="min-h-[44px] w-full px-3 py-2 rounded-xl border text-xs font-bold outline-none js-focus-ring"
+                style={{
+                  backgroundColor: 'var(--color-surface)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-navy)'
+                }}
               >
-                {bloodGroups.map(bg => (
+                {ALL_BLOOD_GROUPS.map(bg => (
                   <option key={bg} value={bg}>{bg}</option>
                 ))}
               </select>
             </div>
 
-            <div>
-              <label htmlFor="intake-component" className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Component Type</label>
-              <select
-                id="intake-component"
-                value={intakeComponent}
-                onChange={(e) => setIntakeComponent(e.target.value as 'RBC' | 'whole')}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
-              >
-                <option value="RBC">Packed Red Blood Cells (RBC)</option>
-                <option value="whole">Whole Blood</option>
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold mb-1" style={{ color: 'var(--color-navy)' }}>
+                  Component
+                </label>
+                <select
+                  value={intakeComponent}
+                  onChange={(e) => setIntakeComponent(e.target.value as any)}
+                  className="min-h-[44px] w-full px-3 py-2 rounded-xl border text-xs font-bold outline-none js-focus-ring"
+                  style={{
+                    backgroundColor: 'var(--color-surface)',
+                    borderColor: 'var(--color-border)',
+                    color: 'var(--color-navy)'
+                  }}
+                >
+                  <option value="RBC">Packed RBC</option>
+                  <option value="whole">Whole Blood</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold mb-1" style={{ color: 'var(--color-navy)' }}>
+                  Expires In (Days)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={42}
+                  value={intakeExpiryDays}
+                  onChange={(e) => setIntakeExpiryDays(parseInt(e.target.value) || 35)}
+                  className="min-h-[44px] w-full px-3 py-2 rounded-xl border text-xs font-bold outline-none js-focus-ring"
+                  style={{
+                    backgroundColor: 'var(--color-surface)',
+                    borderColor: 'var(--color-border)',
+                    color: 'var(--color-navy)'
+                  }}
+                />
+              </div>
             </div>
 
             <div>
-              <label htmlFor="intake-shelf-life" className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Shelf Life (Days)</label>
+              <label className="block text-xs font-bold mb-1" style={{ color: 'var(--color-navy)' }}>
+                Shelf / Vault Code
+              </label>
               <input
-                id="intake-shelf-life"
-                type="number"
-                min="1"
-                max="42"
-                value={intakeExpiryDays}
-                onChange={(e) => setIntakeExpiryDays(parseInt(e.target.value, 10))}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="intake-vault-slot" className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Vault / Shelf Slot</label>
-              <input
-                id="intake-vault-slot"
                 type="text"
+                required
                 value={shelfLocation}
                 onChange={(e) => setShelfLocation(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
+                placeholder="Vault-A-01"
+                className="min-h-[44px] w-full px-3 py-2 rounded-xl border text-xs font-bold outline-none js-focus-ring"
+                style={{
+                  backgroundColor: 'var(--color-surface)',
+                  borderColor: 'var(--color-border)',
+                  color: 'var(--color-navy)'
+                }}
               />
             </div>
 
             <button
               type="submit"
-              className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs shadow-md shadow-rose-900/20"
+              className="min-h-[44px] w-full py-3 px-4 rounded-xl font-bold text-xs text-white flex items-center justify-center gap-2 transition active:scale-95 js-focus-ring shadow-sm"
+              style={{ backgroundColor: 'var(--color-primary)' }}
             >
-              Add Unit to Inventory
+              <Plus className="w-4 h-4" />
+              <span>Record &amp; Stock Unit</span>
             </button>
           </form>
         </div>
 
-        {/* Units Table with Quarantine Action */}
-        <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-slate-900 dark:text-white text-base">
-              Shelf Units ({units.length} Registered)
-            </h3>
-            <span className="text-xs text-slate-400">Sorted by FEFO (Earliest Expiry First)</span>
-          </div>
+      </div>
 
-          <div className="overflow-x-auto max-h-96">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 uppercase font-semibold">
-                <tr>
-                  <th className="p-3">Unit ID</th>
-                  <th className="p-3">Group</th>
-                  <th className="p-3">Type</th>
-                  <th className="p-3">Expiry</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {units.slice(0, 15).map(unit => {
-                  const isAvail = unit.status === 'available';
-                  return (
-                    <tr key={unit.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                      <td className="p-3 font-mono font-medium text-slate-700 dark:text-slate-300">{unit.id}</td>
-                      <td className="p-3 font-bold text-rose-600">{unit.bloodGroup}</td>
-                      <td className="p-3 uppercase">{unit.component}</td>
-                      <td className="p-3 text-slate-500">{new Date(unit.expiresAt).toLocaleDateString()}</td>
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                          isAvail ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                        }`}>
-                          {unit.status}
-                        </span>
-                      </td>
-                      <td className="p-3 text-right">
-                        {isAvail && (
-                          <button
-                            onClick={() => setQuarantineUnitId(unit.id)}
-                            className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded text-[11px] font-semibold transition"
-                          >
-                            Quarantine
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      {/* =========================================================================
+          4. INCOMING REQUESTS (Accept / Decline Actions)
+      ========================================================================= */}
+      <div 
+        className="p-6 sm:p-8 rounded-2xl border shadow-sm space-y-4"
+        style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+      >
+        <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
+          <div>
+            <h3 className="text-base font-black" style={{ color: 'var(--color-navy)' }}>
+              Incoming Emergency Hospital Requests
+            </h3>
+            <p className="text-xs opacity-75">
+              Review and dispatch requested units to nearby care units.
+            </p>
           </div>
+          <span className="text-xs font-bold opacity-75">{requests.length} Requests Active</span>
+        </div>
+
+        <div className="space-y-3">
+          {requests.map(req => (
+            <div 
+              key={req.id}
+              className="p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+              style={{ backgroundColor: 'var(--color-bg)', borderColor: 'var(--color-border)' }}
+            >
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-sm" style={{ color: 'var(--color-navy)' }}>{req.hospitalName}</span>
+                  <StatusBadge status={req.status === 'allocated' ? 'available' : req.status === 'pending' ? 'low' : 'critical'} label={req.status} />
+                </div>
+                <p className="text-xs opacity-75">
+                  Requested: <strong>{req.units} units of {req.bloodGroup}</strong> &bull; Triage: {req.urgency}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleRequestAction(req.id, 'accept')}
+                  className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition active:scale-95 js-focus-ring"
+                  style={{ backgroundColor: 'var(--color-success-fill)' }}
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Accept &amp; Dispatch</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRequestAction(req.id, 'decline')}
+                  className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition active:scale-95 js-focus-ring"
+                  style={{
+                    backgroundColor: 'var(--color-surface)',
+                    borderColor: 'var(--color-border)',
+                    color: 'var(--color-danger)'
+                  }}
+                >
+                  <X className="w-4 h-4" />
+                  <span>Decline</span>
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Quarantine Modal */}
-      {quarantineUnitId && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 shadow-2xl space-y-4">
-            <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
-              <ShieldAlert className="w-5 h-5 text-amber-500" />
-              Quarantine Unit ({quarantineUnitId})
-            </h3>
-            <p className="text-xs text-slate-500">
-              Quarantining immediately decrements the stock counter and records an immutable entry in the audit log.
-            </p>
-            <div>
-              <label htmlFor="quarantine-reason" className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Reason for Quarantine</label>
-              <textarea
-                id="quarantine-reason"
-                value={quarantineReason}
-                onChange={(e) => setQuarantineReason(e.target.value)}
-                rows={3}
-                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-xs text-slate-900 dark:text-white"
-              />
-            </div>
-            <div className="flex gap-3 justify-end pt-2">
-              <button
-                onClick={() => setQuarantineUnitId(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-500"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleQuarantine}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold"
-              >
-                Confirm Quarantine
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Confirmation Dialog for Destructive Quarantine Action */}
+      <ConfirmModal
+        isOpen={isQuarantineOpen}
+        onClose={() => setIsQuarantineOpen(false)}
+        onConfirm={handleConfirmQuarantine}
+        title="Confirm Unit Quarantine / Discard"
+        description={`Are you sure you want to quarantine unit ${quarantineUnitId}? Reason: "${quarantineReason}". This will subtract the unit from active shelf inventory and log to the audit ledger.`}
+        confirmLabel="Quarantine Unit"
+        isDestructive={true}
+      />
+
+      <EmergencyBottomBar />
     </div>
   );
 }

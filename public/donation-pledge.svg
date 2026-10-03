@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 320" fill="none">
+  <defs>
+    <linearGradient id="pledgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F6F8FA"/>
+      <stop offset="100%" stop-color="#FFFFFF"/>
+    </linearGradient>
+  </defs>
+  <rect width="1000" height="320" rx="20" fill="url(#pledgeGrad)" stroke="#D8DFE6" stroke-width="2"/>
+  
+  <!-- Red blood cell accents -->
+  <ellipse cx="120" cy="80" rx="45" ry="35" fill="#C8102E" opacity="0.85"/>
+  <ellipse cx="690" cy="120" rx="35" ry="25" fill="#C8102E" opacity="0.7"/>
+
+  <!-- Left: Blood bag -->
+  <g transform="translate(150, 40)">
+    <rect x="20" y="30" width="100" height="150" rx="20" fill="#FFFFFF" stroke="#D8DFE6" stroke-width="4"/>
+    <rect x="30" y="70" width="80" height="100" rx="12" fill="#C8102E"/>
+    <rect x="45" y="45" width="50" height="16" rx="4" fill="#12263F"/>
+    <text x="70" y="57" fill="#FFFFFF" font-family="sans-serif" font-size="10" font-weight="900" text-anchor="middle">BLOOD</text>
+    <!-- Tube curving to center -->
+    <path d="M70 180 C70 230 200 230 240 180" stroke="#C8102E" stroke-width="6" stroke-linecap="round" fill="none"/>
+  </g>
+
+  <!-- Center Text -->
+  <text x="500" y="130" fill="#C8102E" font-family="sans-serif" font-size="52" font-weight="900" text-anchor="middle">Pledge</text>
+  <text x="590" y="130" fill="#12263F" font-family="sans-serif" font-size="28" font-weight="bold">for</text>
+  <text x="500" y="180" fill="#12263F" font-family="sans-serif" font-size="32" font-weight="800" text-anchor="middle">Voluntary Blood Donation</text>
+  <text x="500" y="210" fill="#137A52" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Every Drop Connects A Life &bull; Pure Community Action</text>
+
+  <!-- Button badge -->
+  <rect x="420" y="235" width="160" height="44" rx="12" fill="#C8102E"/>
+  <text x="500" y="262" fill="#FFFFFF" font-family="sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Take The Pledge</text>
+
+  <!-- Right: Lab / Test tube glove -->
+  <g transform="translate(800, 40)">
+    <rect x="10" y="30" width="28" height="120" rx="14" fill="#FFFFFF" stroke="#D8DFE6" stroke-width="3"/>
+    <rect x="13" y="70" width="22" height="75" rx="8" fill="#C8102E"/>
+    <rect x="8" y="22" width="32" height="12" rx="4" fill="#12263F"/>
+  </g>
+</svg>
