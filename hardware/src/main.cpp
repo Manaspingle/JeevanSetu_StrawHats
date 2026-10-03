@@ -2,12 +2,6 @@
  * ==============================================================================
  * JeevanSetu - IoT Hardware Donor Verification System
  * Platform: ESP32 NodeMCU / DevKit V1
- * Peripherals:
- *   - RC522 RFID Reader (SPI)
- *   - 128x64 I2C OLED Display (SSD1306)
- *   - Green Status LED (GPIO 25 via 220 Ohm)
- *   - Red Status LED (GPIO 26 via 220 Ohm)
- *   - Piezo Buzzer (GPIO 32)
  *
  * Hardware Pin Connections:
  *   1. RC522 SDA/SS  -> GPIO 5
@@ -22,12 +16,13 @@
  *  10. OLED GND      -> GND
  *  11. OLED SDA      -> GPIO 21
  *  12. OLED SCL      -> GPIO 22
- *  13. Green LED (+) -> GPIO 25 (via 220 Ohm)
+ *  13. Green LED (+) -> GPIO 25 via 220 Ohm
  *  14. Green LED (-) -> GND
- *  15. Red LED (+)   -> GPIO 26 (via 220 Ohm)
+ *  15. Red LED (+)   -> GPIO 26 via 220 Ohm
  *  16. Red LED (-)   -> GND
  *  17. Buzzer (+)    -> GPIO 32
  *  18. Buzzer (-)    -> GND
+ *  19. Onboard LED   -> GPIO 2 (Blue status indicator)
  * ==============================================================================
  */
 
@@ -48,19 +43,21 @@
 #define OLED_SDA_PIN   21
 #define OLED_SCL_PIN   22
 
-#define GREEN_LED_PIN  25
-#define RED_LED_PIN    26
-#define BUZZER_PIN     32
+#define GREEN_LED_PIN  25  // 220 Ohm to Anode
+#define RED_LED_PIN    26  // 220 Ohm to Anode
+#define BUZZER_PIN     32  // Buzzer Positive (+)
+#define ONBOARD_LED    2   // ESP32 Onboard Blue LED
 
 // --- OLED CONFIGURATION ---
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 #define OLED_RESET -1
-#define SCREEN_ADDRESS 0x3C
 
-// Peripheral Objects
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 MFRC522 mfrc522(RC522_SS_PIN, RC522_RST_PIN);
+
+uint8_t oledI2CAddress = 0x3C;
+bool oledReady = false;
 
 // Donor Registry Structure
 struct DonorRecord {
@@ -76,79 +73,75 @@ struct DonorRecord {
 
 // Database of registered donors
 const DonorRecord REGISTERED_DONORS[] = {
-  { "A4:8B:2F:10", "Rahul Sharma", "Male",   "O+",  68, "12 July 2026",   110, true },
-  { "7B:3E:91:A2", "Sneha Patil",  "Female", "B+",  54, "15 May 2026",    140, true },
-  { "5C:1D:8E:44", "Amit Verma",   "Male",   "A-",  72, "08 Sept 2026",    25, true },  // Cooldown active (<90d)
-  { "9D:4A:2C:77", "Priya Deshmukh","Female","AB+", 58, "24 Aug 2026",     40, true }   // Cooldown active (<120d)
+  { "A4:8B:2F:10", "Rahul Sharma",  "Male",   "O+",  68, "12 July 2026",   110, true },
+  { "7B:3E:91:A2", "Sneha Patil",   "Female", "B+",  54, "15 May 2026",    140, true },
+  { "5C:1D:8E:44", "Amit Verma",    "Male",   "A-",  72, "08 Sept 2026",    25, true },  // Cooldown (<90d)
+  { "9D:4A:2C:77", "Priya Deshmukh","Female", "AB+", 58, "24 Aug 2026",     40, true }   // Cooldown (<120d)
 };
 const int NUM_REGISTERED_DONORS = sizeof(REGISTERED_DONORS) / sizeof(REGISTERED_DONORS[0]);
 
 // Function Prototypes
+void runHardwareSelfTest();
+void initOledWithScanner();
 void displayIdleScreen();
 void displayVerifiedDonor(const DonorRecord& donor, const char* eligibleQty);
 void displayAccessDenied(const char* reason, const char* cardUid);
-void triggerBuzzerOneSecond();
+void triggerBuzzerOneSecond(bool isSuccess);
 String getCardUidString();
 
 void setup() {
   Serial.begin(115200);
-  delay(500);
-  Serial.println("\n[JeevanSetu] Booting ESP32 Donor Verification System...");
+  delay(300);
+  Serial.println("\n========================================================");
+  Serial.println("  JeevanSetu ESP32 RFID Donor Verification System");
+  Serial.println("========================================================");
 
-  // Configure Output Pins
+  // 1. Configure Output Pins
   pinMode(GREEN_LED_PIN, OUTPUT);
   pinMode(RED_LED_PIN, OUTPUT);
   pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(ONBOARD_LED, OUTPUT);
 
-  digitalWrite(GREEN_LED_PIN, LOW);
-  digitalWrite(RED_LED_PIN, LOW);
-  digitalWrite(BUZZER_PIN, LOW);
+  // Turn ON Onboard Blue LED to prove the ESP32 is powered & executing code!
+  digitalWrite(ONBOARD_LED, HIGH);
 
-  // Initialize I2C for SSD1306 OLED (SDA: 21, SCL: 22)
+  // 2. Run Hardware Self-Test: flashes LEDs and sounds buzzer
+  runHardwareSelfTest();
+
+  // 3. Initialize I2C for SSD1306 OLED (SDA 21, SCL 22 at 100kHz standard mode)
   Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN);
-  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
-    Serial.println("[ERROR] SSD1306 OLED allocation failed");
-  } else {
-    display.clearDisplay();
-    display.setTextColor(SSD1306_WHITE);
-    display.setTextSize(1);
-    display.setCursor(10, 20);
-    display.println("JeevanSetu Booting...");
-    display.display();
-    delay(1000);
-  }
+  Wire.setClock(100000); // 100 kHz for high stability on jumper wires
+  delay(150);            // Allow OLED internal charge pump to stabilize
+  initOledWithScanner();
 
-  // Initialize SPI bus for RC522 (SCK: 18, MISO: 19, MOSI: 23, SS: 5)
+  // 4. Initialize SPI bus for RC522 (SCK 18, MISO 19, MOSI 23, SS 5)
   SPI.begin(RC522_SCK_PIN, RC522_MISO_PIN, RC522_MOSI_PIN, RC522_SS_PIN);
   mfrc522.PCD_Init();
-  delay(100);
+  delay(50);
 
-  Serial.println("[RC522] RFID Reader initialized.");
+  Serial.println("[RC522] RFID reader ready.");
   mfrc522.PCD_DumpVersionToSerial();
 
-  // Self-test startup chirp (100ms)
-  digitalWrite(BUZZER_PIN, HIGH);
-  delay(100);
-  digitalWrite(BUZZER_PIN, LOW);
-
+  // Ready Screen
   displayIdleScreen();
+  Serial.println("[SYSTEM READY] Present RFID card to scan...");
 }
 
 void loop() {
   // Check if a new RFID card is presented
   if (!mfrc522.PICC_IsNewCardPresent()) {
-    delay(50);
+    delay(40);
     return;
   }
 
   if (!mfrc522.PICC_ReadCardSerial()) {
-    delay(50);
+    delay(40);
     return;
   }
 
   // Read Card UID as hex string formatted with colons
   String cardUid = getCardUidString();
-  Serial.print("\n[RFID SCANNED] Card UID: ");
+  Serial.print("\n>>> [CARD DETECTED] Scanned UID: ");
   Serial.println(cardUid);
 
   // Search donor in registry
@@ -162,25 +155,24 @@ void loop() {
 
   if (matchedDonor == nullptr) {
     // -------------------------------------------------------------
-    // UNAUTHORIZED / NOT REGISTERED CARD
+    // CASE 1: UNAUTHORIZED / UNREGISTERED CARD
+    // Red LED glows, Buzzer beeps 1 second, OLED displays Access Denied
     // -------------------------------------------------------------
-    Serial.println("[ACCESS DENIED] Card not found in JeevanSetu registry.");
-    
-    // Red LED glows
+    Serial.println("[DENIED] Card is NOT registered in JeevanSetu database.");
+
     digitalWrite(RED_LED_PIN, HIGH);
     digitalWrite(GREEN_LED_PIN, LOW);
 
-    // OLED display access denied
     displayAccessDenied("NOT REGISTERED", cardUid.c_str());
 
-    // Buzzer beeps for 1 second showcasing error/attempt
-    triggerBuzzerOneSecond();
+    // Buzzer beeps for 1 second
+    triggerBuzzerOneSecond(false);
 
     delay(3000);
     digitalWrite(RED_LED_PIN, LOW);
   } else {
     // -------------------------------------------------------------
-    // CHECK BIOLOGICAL COOLDOWN ELIGIBILITY:
+    // CASE 2: CHECK BIOLOGICAL COOLDOWN ELIGIBILITY
     // Men: Minimum 3 months (90 days)
     // Women: Minimum 4 months (120 days)
     // -------------------------------------------------------------
@@ -195,66 +187,150 @@ void loop() {
       digitalWrite(RED_LED_PIN, HIGH);
       digitalWrite(GREEN_LED_PIN, LOW);
 
-      display.clearDisplay();
-      display.setTextSize(1);
-      display.setCursor(0, 0);
-      display.println("====================");
-      display.println(" COOLDOWN ACTIVE ");
-      display.println("====================");
-      display.printf("Name: %s\n", matchedDonor->name);
-      display.printf("Wait: %d Days Left\n", daysRemaining);
-      display.printf("Rule: %s (Min %dd)\n", isFemale ? "Women" : "Men", requiredDays);
-      display.display();
+      if (oledReady) {
+        display.clearDisplay();
+        display.setTextSize(1);
+        display.setTextColor(SSD1306_WHITE);
+        display.drawRect(0, 0, 128, 64, SSD1306_WHITE);
+        display.setCursor(8, 4);
+        display.println("COOLDOWN ACTIVE");
+        display.drawLine(0, 14, 128, 14, SSD1306_WHITE);
+        display.setCursor(6, 20);
+        display.printf("Name: %s\n", matchedDonor->name);
+        display.setCursor(6, 32);
+        display.printf("Wait: %d Days Left\n", daysRemaining);
+        display.setCursor(6, 44);
+        display.printf("Rule: %s (%dd)\n", isFemale ? "Women" : "Men", requiredDays);
+        display.display();
+      }
 
       // Buzzer beeps for 1 second
-      triggerBuzzerOneSecond();
+      triggerBuzzerOneSecond(false);
 
       delay(3000);
       digitalWrite(RED_LED_PIN, LOW);
     } else {
       // -------------------------------------------------------------
-      // AUTHORIZED & FULLY ELIGIBLE DONOR:
-      // Buzzer beeps for 1 second showcasing success
+      // CASE 3: AUTHORIZED & FULLY ELIGIBLE DONOR
+      // Buzzer beeps for 1 second showcasing SUCCESS
       // Green LED glows
       // OLED displays: Name, Blood Group, Eligible Quantity, Last Date
       // -------------------------------------------------------------
       const char* eligibleQty = (matchedDonor->weightKg >= 60) ? "450 ml" : "350 ml";
 
-      Serial.println("[SUCCESS] Donor Authorized & Eligible!");
-      Serial.printf("Name: %s | Blood: %s | Qty: %s | Last: %s\n",
+      Serial.println("[SUCCESS] Donor Verified & Eligible to Donate!");
+      Serial.printf("Name: %s | Blood: %s | Eligible: %s | Last: %s\n",
                     matchedDonor->name, matchedDonor->bloodGroup, eligibleQty, matchedDonor->lastDonationDate);
 
       // Green LED turns ON, Red LED turns OFF
       digitalWrite(GREEN_LED_PIN, HIGH);
       digitalWrite(RED_LED_PIN, LOW);
 
-      // OLED screen displays donor details
+      // OLED screen displays verified donor details
       displayVerifiedDonor(*matchedDonor, eligibleQty);
 
-      // Buzzer beeps for exactly 1 second showcasing success
-      triggerBuzzerOneSecond();
+      // Buzzer beeps for exactly 1 second
+      triggerBuzzerOneSecond(true);
 
-      // Hold verified display for 4 seconds so clinical staff can verify
+      // Hold verified display for 4 seconds
       delay(4000);
       digitalWrite(GREEN_LED_PIN, LOW);
     }
   }
 
-  // Halt PICC card to allow new scan
+  // Halt card to allow subsequent scans
   mfrc522.PICC_HaltA();
   mfrc522.PCD_StopCrypto1();
 
-  // Return to ready state
   displayIdleScreen();
 }
 
 /**
- * Buzzer sounds for exactly 1000 milliseconds (1 second)
+ * Hardware Self-Test on Boot:
+ * Flashes Green LED, Red LED, and sounds Buzzer so user knows everything works.
  */
-void triggerBuzzerOneSecond() {
-  digitalWrite(BUZZER_PIN, HIGH);
-  delay(1000);
-  digitalWrite(BUZZER_PIN, LOW);
+void runHardwareSelfTest() {
+  Serial.println("[SELF-TEST] Testing Green LED, Red LED, and Buzzer...");
+
+  // Green LED test
+  digitalWrite(GREEN_LED_PIN, HIGH);
+  delay(350);
+  digitalWrite(GREEN_LED_PIN, LOW);
+
+  // Red LED test
+  digitalWrite(RED_LED_PIN, HIGH);
+  delay(350);
+  digitalWrite(RED_LED_PIN, LOW);
+
+  // Buzzer short test pulse (150ms)
+  for (int i = 0; i < 300; i++) {
+    digitalWrite(BUZZER_PIN, HIGH);
+    delayMicroseconds(250);
+    digitalWrite(BUZZER_PIN, LOW);
+    delayMicroseconds(250);
+  }
+
+  Serial.println("[SELF-TEST] Complete. All pins validated.");
+}
+
+/**
+ * Scans I2C bus and initializes SSD1306 OLED at detected address (0x3C or 0x3D)
+ */
+void initOledWithScanner() {
+  Serial.println("[I2C SCAN] Scanning for OLED display on SDA(21), SCL(22)...");
+  uint8_t foundAddr = 0;
+
+  for (uint8_t addr = 1; addr < 127; addr++) {
+    Wire.beginTransmission(addr);
+    if (Wire.endTransmission() == 0) {
+      Serial.printf("[I2C SCAN] Device found at 0x%02X\n", addr);
+      if (addr == 0x3C || addr == 0x3D) {
+        foundAddr = addr;
+        break;
+      }
+    }
+  }
+
+  if (foundAddr == 0) {
+    foundAddr = 0x3C; // fallback default
+    Serial.println("[I2C] No device responded. Defaulting to 0x3C.");
+  }
+
+  oledI2CAddress = foundAddr;
+
+  if (display.begin(SSD1306_SWITCHCAPVCC, oledI2CAddress)) {
+    oledReady = true;
+    display.clearDisplay();
+    display.setTextColor(SSD1306_WHITE);
+    display.drawRect(0, 0, 128, 64, SSD1306_WHITE);
+    display.setTextSize(1);
+    display.setCursor(14, 18);
+    display.println("JeevanSetu Grid");
+    display.setCursor(16, 34);
+    display.println("ESP32 IoT Node");
+    display.display();
+    delay(800);
+    Serial.printf("[OLED] Initialized successfully at address 0x%02X\n", oledI2CAddress);
+  } else {
+    Serial.println("[OLED ERROR] Could not allocate SSD1306 display.");
+  }
+}
+
+/**
+ * 1-Second Buzzer Routine:
+ * Generates a clean square wave audio frequency for exactly 1000 ms.
+ * Works seamlessly with BOTH active buzzers AND passive buzzers!
+ */
+void triggerBuzzerOneSecond(bool isSuccess) {
+  unsigned long start = millis();
+  int halfPeriodUs = isSuccess ? 250 : 500; // 2000Hz (success) or 1000Hz (error)
+
+  while (millis() - start < 1000) {
+    digitalWrite(BUZZER_PIN, HIGH);
+    delayMicroseconds(halfPeriodUs);
+    digitalWrite(BUZZER_PIN, LOW);
+    delayMicroseconds(halfPeriodUs);
+  }
 }
 
 /**
@@ -275,18 +351,21 @@ String getCardUidString() {
  * Display default ready screen on SSD1306 OLED
  */
 void displayIdleScreen() {
+  if (!oledReady) return;
   display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.drawRect(0, 0, 128, 64, SSD1306_WHITE);
   display.setTextSize(1);
-  display.setCursor(14, 4);
+  display.setCursor(12, 6);
   display.println("JeevanSetu Grid");
-  display.setCursor(0, 16);
-  display.println("---------------------");
-  display.setCursor(6, 28);
-  display.println("SCAN DONOR RFID CARD");
-  display.setCursor(10, 42);
+  display.drawLine(0, 16, 128, 16, SSD1306_WHITE);
+  display.setCursor(10, 24);
+  display.println("SCAN DONOR CARD");
+  display.setCursor(14, 38);
   display.println("Status: READY");
-  display.setCursor(0, 54);
-  display.println("Casualty Triage Node");
+  display.drawLine(0, 48, 128, 48, SSD1306_WHITE);
+  display.setCursor(8, 52);
+  display.println("Hospital Triage");
   display.display();
 }
 
@@ -294,14 +373,21 @@ void displayIdleScreen() {
  * Display verified donor record on SSD1306 OLED
  */
 void displayVerifiedDonor(const DonorRecord& donor, const char* eligibleQty) {
+  if (!oledReady) return;
   display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.drawRect(0, 0, 128, 64, SSD1306_WHITE);
   display.setTextSize(1);
-  display.setCursor(0, 0);
-  display.println("** VERIFIED DONOR **");
-  display.println("---------------------");
+  display.setCursor(10, 4);
+  display.println("VERIFIED DONOR");
+  display.drawLine(0, 14, 128, 14, SSD1306_WHITE);
+  display.setCursor(4, 18);
   display.printf("Name: %s\n", donor.name);
+  display.setCursor(4, 30);
   display.printf("Blood: %s (%s)\n", donor.bloodGroup, donor.gender);
+  display.setCursor(4, 42);
   display.printf("Eligible: %s\n", eligibleQty);
+  display.setCursor(4, 52);
   display.printf("Last: %s\n", donor.lastDonationDate);
   display.display();
 }
@@ -310,14 +396,19 @@ void displayVerifiedDonor(const DonorRecord& donor, const char* eligibleQty) {
  * Display access denied screen on SSD1306 OLED
  */
 void displayAccessDenied(const char* reason, const char* cardUid) {
+  if (!oledReady) return;
   display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.drawRect(0, 0, 128, 64, SSD1306_WHITE);
   display.setTextSize(1);
-  display.setCursor(0, 0);
-  display.println("====================");
-  display.println("  ACCESS DENIED!   ");
-  display.println("====================");
+  display.setCursor(18, 4);
+  display.println("ACCESS DENIED");
+  display.drawLine(0, 14, 128, 14, SSD1306_WHITE);
+  display.setCursor(4, 22);
   display.printf("Reason: %s\n", reason);
+  display.setCursor(4, 36);
   display.printf("UID: %s\n", cardUid);
+  display.setCursor(4, 50);
   display.println("Unverified Card");
   display.display();
 }
